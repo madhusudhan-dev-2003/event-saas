@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
+
 const config: NextConfig = {
-  output: "standalone",
+  // Next 16.3 + Vercel's adapter skips next-server.js.nft.json, which standalone still reads.
+  output: process.env.VERCEL ? undefined : "standalone",
   poweredByHeader: false,
   async headers() {
     return [

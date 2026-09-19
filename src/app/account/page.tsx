@@ -47,18 +47,33 @@ export default async function Account({
   const spaceParam = spaceId ? `?space=${spaceId}` : "";
 
   return (
-    <Shell user={user} spaces={spaces} spaceId={spaceId} active="account">
-      <header className="page-header-bar">
-        <div>
-          <p className="eyebrow">YOUR ACCOUNT</p>
-          <h1>{user.name}</h1>
-          <p>
-            Profile, security, and the spaces you belong to. Joined {joined}.
-          </p>
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={spaceId}
+      active="account"
+      title={user.name}
+      description={`Profile, security, and the spaces you belong to. Joined ${joined}.`}
+    >
+      <div className="users-hub">
+      <div className="celeb-kpi-grid users-kpi-grid">
+        <div className="celeb-kpi">
+          <b>Spaces</b>
+          <strong>{memberships.length}</strong>
         </div>
-        <span className="account-avatar-lg">{user.name.charAt(0)}</span>
-      </header>
-
+        <div className="celeb-kpi">
+          <b>Devices</b>
+          <strong>{sessions.length}</strong>
+        </div>
+        <div className="celeb-kpi">
+          <b>Email</b>
+          <strong>{profile.emailVerifiedAt ? "On" : "Off"}</strong>
+        </div>
+        <div className="celeb-kpi">
+          <b>Listing</b>
+          <strong>{provider ? 1 : 0}</strong>
+        </div>
+      </div>
       <nav className="settings-jump" aria-label="Account sections">
         <a href="#account-profile">Profile</a>
         <a href="#account-email">Email</a>
@@ -164,6 +179,7 @@ export default async function Account({
           {provider ? "Edit provider profile" : "Create provider profile"}
         </Link>
       </section>
+      </div>
     </Shell>
   );
 }

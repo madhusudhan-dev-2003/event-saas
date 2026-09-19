@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMoney } from "@/lib/planning";
+
 type Slice = { label: string; value: number; color: string };
 
 function polar(cx: number, cy: number, r: number, angle: number) {
@@ -78,15 +80,19 @@ export function PieChart({
 export function BarChart({
   title,
   bars,
+  currency,
+  wide,
 }: {
   title: string;
   bars: { label: string; value: number }[];
+  currency?: string;
+  wide?: boolean;
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div className="chart-card">
       <h3>{title}</h3>
-      <div className="bar-chart">
+      <div className={`bar-chart${wide ? " is-wide" : ""}`}>
         {bars.map((b) => (
           <div key={b.label} className="bar-row">
             <span className="bar-label">{b.label}</span>
@@ -96,11 +102,55 @@ export function BarChart({
                 style={{ width: `${(b.value / max) * 100}%` }}
               />
             </div>
-            <span className="bar-value">{b.value}</span>
+            <span className="bar-value">
+              {currency ? formatMoney(b.value, currency) : b.value}
+            </span>
           </div>
         ))}
         {!bars.length && <p className="empty-inline">No data yet</p>}
       </div>
+    </div>
+  );
+}
+
+export function StackedMeter({
+  title,
+  caption,
+  segments,
+}: {
+  title: string;
+  caption: string;
+  segments: { label: string; value: number; color: string }[];
+}) {
+  const total = segments.reduce((n, s) => n + s.value, 0) || 1;
+  return (
+    <div className="chart-card">
+      <div className="chart-card-head">
+        <h3>{title}</h3>
+        <span>{caption}</span>
+      </div>
+      <div className="stack-meter" role="img" aria-label={caption}>
+        {segments.map((s) =>
+          s.value > 0 ? (
+            <div
+              key={s.label}
+              style={{
+                width: `${(s.value / total) * 100}%`,
+                background: s.color,
+              }}
+              title={`${s.label}: ${s.value}`}
+            />
+          ) : null,
+        )}
+      </div>
+      <ul className="chart-legend stack-legend">
+        {segments.map((s) => (
+          <li key={s.label}>
+            <span style={{ background: s.color }} />
+            {s.label}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

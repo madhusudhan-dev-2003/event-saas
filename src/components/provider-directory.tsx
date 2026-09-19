@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePageSearch } from "@/components/topbar-search";
 import Link from "next/link";
 import { addDirectoryVendor } from "@/app/provider-actions";
 import { ProviderForm } from "@/components/provider-forms";
@@ -13,7 +14,6 @@ import {
   MapPin,
   Pencil,
   Plus,
-  Search,
   Store,
   Tag,
 } from "@/components/icons";
@@ -130,7 +130,6 @@ export function ProviderDirectory({
   canAddVendors,
   events,
   openManage = false,
-  initialQuery = "",
 }: {
   providers: DirectoryProvider[];
   own: OwnProvider;
@@ -140,10 +139,9 @@ export function ProviderDirectory({
   canAddVendors: boolean;
   events: DirectoryEvent[];
   openManage?: boolean;
-  initialQuery?: string;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState(initialQuery);
+  const query = usePageSearch();
   const [category, setCategory] = useState("all");
   const [location, setLocation] = useState("all");
   const [profileOpen, setProfileOpen] = useState(openManage);
@@ -204,30 +202,6 @@ export function ProviderDirectory({
 
   return (
     <div className="provider-hub">
-      <header className="page-header-bar">
-        <div>
-          <h1>Provider directory</h1>
-          <p>
-            Published business profiles from people on Utsava. Add one to a
-            celebration shortlist, or publish your own listing.
-          </p>
-        </div>
-        {signedIn ? (
-          <button
-            type="button"
-            className="btn-add"
-            onClick={() => setProfileOpen(true)}
-          >
-            <Pencil size={16} />
-            {own ? "Manage my provider profile" : "Create provider profile"}
-          </button>
-        ) : (
-          <Link className="btn-add" href={loginHref}>
-            Sign in to list your business
-          </Link>
-        )}
-      </header>
-
       <div className="celeb-kpi-grid users-kpi-grid">
         <div className="celeb-kpi">
           <span className="celeb-kpi-icon is-rose">
@@ -263,6 +237,23 @@ export function ProviderDirectory({
         </div>
       </div>
 
+      <div className="page-actions">
+        {signedIn ? (
+          <button
+            type="button"
+            className="btn-add"
+            onClick={() => setProfileOpen(true)}
+          >
+            <Pencil size={16} />
+            {own ? "Manage my provider profile" : "Create provider profile"}
+          </button>
+        ) : (
+          <Link className="btn-add" href={loginHref}>
+            Sign in to list your business
+          </Link>
+        )}
+      </div>
+
       {own && !own.published ? (
         <div className="provider-own-note">
           <div>
@@ -283,15 +274,6 @@ export function ProviderDirectory({
       ) : null}
 
       <div className="users-toolbar provider-toolbar">
-        <label className="celeb-search">
-          <Search size={16} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, service, area or contact"
-            aria-label="Search providers"
-          />
-        </label>
         <select
           value={location}
           onChange={(e) => setLocation(e.target.value)}

@@ -2,51 +2,35 @@
 import { z } from "zod";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { requireUser, limit } from "@/lib/auth";
-import { token, hashToken, passwordHash, verifyPassword } from "@/lib/security";
-import { appUrl } from "@/lib/stripe";
+import { requireUser, limit, startSession } from "@/lib/auth";
+import {
+  hashToken,
+  passwordHash,
+  verifyPassword,
+  PASSWORD_MIN_LENGTH,
+} from "@/lib/security";
+import { mailConfigured, sendAppEmail } from "@/lib/mail";
+import { issueAccountLink } from "@/lib/account-tokens";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 type State = { error?: string; success?: string };
 async function sendAccountLink(
   userId: string,
   email: string,
   purpose: "VERIFY" | "RESET",
 ) {
-  if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM)
+  if (!mailConfigured())
     throw new Error("Email delivery is not configured yet.");
-  const raw = token();
-  const url = `${appUrl()}/account/${purpose === "VERIFY" ? "verify" : "reset"}/${raw}`;
-  const hash = hashToken(raw);
-  await db.accountToken.create({
-    data: {
-      tokenHash: hash,
-      userId,
-      purpose,
-      expiresAt: new Date(Date.now() + 3600000),
-    },
+  const { url, raw } = await issueAccountLink(userId, purpose);
+  await sendAppEmail({
+    to: email,
+    subject:
+      purpose === "VERIFY"
+        ? "Verify your Utsava email"
+        : "Reset your Utsava password",
+    text: `${purpose === "VERIFY" ? "Verify your email" : "Reset your password"} using this link, valid for one hour:\n\n${url}\n\nIf you did not request this, ignore this message.`,
+    idempotencyKey: `account-${hashToken(raw)}`,
   });
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": `account-${hash}`,
-    },
-    body: JSON.stringify({
-      from: process.env.MAIL_FROM,
-      to: [email],
-      subject:
-        purpose === "VERIFY"
-          ? "Verify your Utsava email"
-          : "Reset your Utsava password",
-      text: `${purpose === "VERIFY" ? "Verify your email" : "Reset your password"} using this link, valid for one hour:\n\n${url}\n\nIf you did not request this, ignore this message.`,
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!response.ok)
-    throw new Error(
-      "Email provider could not accept the message. Please try again.",
-    );
 }
 export async function requestVerification(): Promise<State> {
   const user = await requireUser();
@@ -55,7 +39,7 @@ export async function requestVerification(): Promise<State> {
     await sendAccountLink(user.id, user.email, "VERIFY");
     return {
       success:
-        "Verification email accepted by the mail provider. Check your inbox; delivery may take a moment.",
+        "Verification email sent. Check your inbox; delivery may take a moment.",
     };
   } catch (e) {
     return {
@@ -109,7 +93,7 @@ export async function verifyEmail(_: State, form: FormData): Promise<State> {
   }
 }
 export async function requestReset(_: State, form: FormData): Promise<State> {
-  if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM)
+  if (!mailConfigured())
     return {
       error:
         "Password recovery is unavailable until email delivery is configured.",
@@ -122,14 +106,17 @@ export async function requestReset(_: State, form: FormData): Promise<State> {
     );
     await limit(`reset:${hashToken(email)}`, 3, 3600);
     const user = await db.user.findUnique({ where: { email } });
-    if (user) await sendAccountLink(user.id, email, "RESET");
-  } catch {
-    /* Do not disclose whether an account exists or its provider response. */
+    if (!user) return { error: "No account exists for this email." };
+    await sendAccountLink(user.id, email, "RESET");
+    return {
+      success: "A password reset link was sent to this registered email.",
+    };
+  } catch (e) {
+    return {
+      error:
+        e instanceof Error ? e.message : "The reset email could not be sent.",
+    };
   }
-  return {
-    success:
-      "If an account matches this email, a reset link has been requested.",
-  };
 }
 export async function resetPassword(_: State, form: FormData): Promise<State> {
   try {
@@ -137,7 +124,11 @@ export async function resetPassword(_: State, form: FormData): Promise<State> {
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .parse(form.get("token"));
-    const password = z.string().min(12).max(128).parse(form.get("password"));
+    const password = z
+      .string()
+      .min(PASSWORD_MIN_LENGTH)
+      .max(128)
+      .parse(form.get("password"));
     if (password !== form.get("confirm"))
       return { error: "Passwords must match." };
     await db.$transaction(async (tx) => {
@@ -182,6 +173,63 @@ export async function resetPassword(_: State, form: FormData): Promise<State> {
   }
 }
 
+export async function setPassword(_: State, form: FormData): Promise<State> {
+  try {
+    const raw = z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .parse(form.get("token"));
+    const password = z
+      .string()
+      .min(PASSWORD_MIN_LENGTH)
+      .max(128)
+      .parse(form.get("password"));
+    if (password !== form.get("confirm"))
+      return { error: "Passwords must match." };
+    const userId = await db.$transaction(async (tx) => {
+      const t = await tx.accountToken.findUnique({
+        where: { tokenHash: hashToken(raw) },
+      });
+      if (
+        !t ||
+        t.purpose !== "SET" ||
+        t.consumedAt ||
+        t.expiresAt <= new Date()
+      )
+        throw new Error("Invalid token");
+      const used = await tx.accountToken.updateMany({
+        where: {
+          tokenHash: t.tokenHash,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { consumedAt: new Date() },
+      });
+      if (!used.count) throw new Error("Token already used");
+      await tx.user.update({
+        where: { id: t.userId },
+        data: {
+          passwordHash: passwordHash(password),
+          emailVerifiedAt: new Date(),
+        },
+      });
+      await tx.session.deleteMany({ where: { userId: t.userId } });
+      await tx.accountToken.updateMany({
+        where: { userId: t.userId, purpose: "SET", consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+      return t.userId;
+    });
+    await startSession(userId);
+  } catch {
+    return {
+      error:
+        "This set-password link is invalid or expired, or the password does not meet the requirements.",
+    };
+  }
+  redirect("/dashboard");
+}
+
 export async function updateAccountProfile(_: State, form: FormData): Promise<State> {
   const user = await requireUser();
   try {
@@ -201,7 +249,11 @@ export async function changePassword(_: State, form: FormData): Promise<State> {
   const user = await requireUser();
   try {
     const current = z.string().min(1).parse(form.get("current"));
-    const password = z.string().min(12).max(128).parse(form.get("password"));
+    const password = z
+      .string()
+      .min(PASSWORD_MIN_LENGTH)
+      .max(128)
+      .parse(form.get("password"));
     if (password !== form.get("confirm")) return { error: "Passwords must match." };
     const record = await db.user.findUniqueOrThrow({
       where: { id: user.id },
@@ -226,7 +278,7 @@ export async function changePassword(_: State, form: FormData): Promise<State> {
     return {
       error:
         e instanceof z.ZodError
-          ? "Use a password of at least 12 characters."
+          ? `Use a password of at least ${PASSWORD_MIN_LENGTH} characters.`
           : "Password could not be updated.",
     };
   }

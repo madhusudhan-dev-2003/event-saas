@@ -5,6 +5,8 @@ import {
   timingSafeEqual,
   createHmac,
 } from "node:crypto";
+export const PASSWORD_MIN_LENGTH = 6;
+
 export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }

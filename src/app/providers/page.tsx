@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { Shell } from "@/components/shell";
 import { getShellContext } from "@/lib/space-context";
@@ -81,7 +82,15 @@ export default async function Providers({
   const loginHref = `/login`;
 
   return (
-    <Shell user={user} spaces={spaces} spaceId={spaceId} active="providers">
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={spaceId}
+      active="providers"
+      title="Provider directory"
+      description="Published business profiles. Add one to a celebration, or publish your own listing."
+    >
+      <Suspense>
       <ProviderDirectory
         providers={providers}
         own={
@@ -102,8 +111,8 @@ export default async function Providers({
         canAddVendors={canAddVendors}
         events={events}
         openManage={params.manage === "1" && Boolean(user)}
-        initialQuery={params.q?.slice(0, 120) || ""}
       />
+      </Suspense>
     </Shell>
   );
 }

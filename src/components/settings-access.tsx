@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { usePageSearch } from "@/components/topbar-search";
 import {
   CreateRoleForm,
   DeleteRoleForm,
@@ -45,16 +46,38 @@ export function SettingsAccess({
   roles: Role[];
   assignableRoles: Role[];
 }) {
+  const query = usePageSearch();
   const [roleOpen, setRoleOpen] = useState(false);
   const [editRole, setEditRole] = useState<Role | null>(null);
   const [editMember, setEditMember] = useState<Member | null>(null);
   const inviteRoles = assignableRoles.filter(
     (role) => role.systemKey !== "ADMIN" || isOwner,
   );
+  const visibleRoles = useMemo(
+    () =>
+      roles.filter(
+        (role) =>
+          !query ||
+          role.name.toLowerCase().includes(query) ||
+          (role.systemKey || "").toLowerCase().includes(query),
+      ),
+    [roles, query],
+  );
+  const visibleMembers = useMemo(
+    () =>
+      members.filter(
+        (member) =>
+          !query ||
+          member.name.toLowerCase().includes(query) ||
+          member.email.toLowerCase().includes(query) ||
+          member.roleName.toLowerCase().includes(query),
+      ),
+    [members, query],
+  );
 
   return (
     <>
-      <section id="settings-access" className="panel space-settings-span">
+      <section id="settings-access" className="panel">
         <div className="space-settings-heading">
           <div>
             <h2>Access and roles</h2>
@@ -74,7 +97,7 @@ export function SettingsAccess({
           ) : null}
         </div>
         <div className="settings-role-grid">
-          {roles.map((role) => (
+          {visibleRoles.map((role) => (
             <article className="settings-role-tile" key={role.id}>
               <header>
                 <div>
@@ -108,11 +131,11 @@ export function SettingsAccess({
         </div>
       </section>
 
-      <section id="settings-people" className="panel space-settings-span">
+      <section id="settings-people" className="panel">
         <h2>People in this space</h2>
         <p>Change a person’s role or modules without leaving Settings.</p>
         <div className="settings-people-list">
-          {members.map((member) => (
+          {visibleMembers.map((member) => (
             <div className="settings-person-row" key={member.userId}>
               <span className="users-avatar">
                 {member.name
@@ -203,6 +226,9 @@ export function SettingsAccess({
               manage &&
               editMember.systemKey !== "OWNER" &&
               (editMember.systemKey !== "ADMIN" || isOwner)
+            }
+            canSetPassword={
+              manage && (isOwner || editMember.systemKey !== "OWNER")
             }
           />
         ) : null}

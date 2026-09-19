@@ -494,7 +494,7 @@ If two editors save the same event, the second gets a reload error. There is no 
 
 **Secrets:** only on the server (`DATABASE_URL`, `DIRECT_URL`, `STRIPE_*`, `RESEND_*`, `OMNIROUTE_*`, `APP_URL`). Production `APP_URL` must be HTTPS.
 
-**Passwords:** scrypt, random salt, constant-time compare. Minimum 12 characters on register/reset.
+**Passwords:** scrypt, random salt, constant-time compare. Minimum 6 characters on register/reset.
 
 **Tokens:** 32-byte hex in URLs; SHA-256 at rest. Sessions httpOnly, `SameSite=lax`, `Secure` in production.
 

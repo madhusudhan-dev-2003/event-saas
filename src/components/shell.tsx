@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -12,6 +13,9 @@ import {
 } from "@/components/icons";
 import { logout } from "@/app/actions";
 import { SpaceSwitcher } from "@/components/space-switcher";
+import { TopbarSearch } from "@/components/topbar-search";
+import { BrandFavicon } from "@/components/brand-favicon";
+import { getSpaceBrandMeta } from "@/lib/brand";
 
 function spaceHref(path: string, spaceId?: string) {
   if (!spaceId) return path;
@@ -19,13 +23,15 @@ function spaceHref(path: string, spaceId?: string) {
   return `${path}${join}space=${spaceId}`;
 }
 
-export function Shell({
+export async function Shell({
   children,
   user,
   spaces = [],
   spaceId = "",
   active = "dashboard",
   saveStatus,
+  title,
+  description,
 }: {
   children: React.ReactNode;
   user?: { name: string };
@@ -33,16 +39,39 @@ export function Shell({
   spaceId?: string;
   active?: string;
   saveStatus?: "idle" | "saving" | "saved" | "error";
+  title?: string;
+  description?: string;
 }) {
   const usersHref = spaceId ? `/users?space=${spaceId}` : "/spaces/new";
   const settingsHref = spaceId ? `/settings?space=${spaceId}` : "/spaces/new";
+  const brand = spaceId ? await getSpaceBrandMeta(spaceId) : null;
 
   return (
     <div className="app-shell">
+      {spaceId ? (
+        <BrandFavicon
+          spaceId={spaceId}
+          hasFavicon={Boolean(brand?.hasFavicon)}
+          rev={brand?.rev || 0}
+        />
+      ) : null}
       <aside className="sidebar">
-        <Link href={spaceHref("/dashboard", spaceId)} className="brand">
-          <Flower2 size={32} strokeWidth={1.3} />
-          utsava<span>CELEBRATE TOGETHER</span>
+        <Link
+          href={spaceHref("/dashboard", spaceId)}
+          className={brand?.hasLogo ? "brand has-logo" : "brand"}
+        >
+          {brand?.hasLogo ? (
+            <img
+              className="brand-logo"
+              src={`/api/brand/logo?space=${encodeURIComponent(spaceId)}&v=${brand.rev}`}
+              alt="Space logo"
+            />
+          ) : (
+            <>
+              <Flower2 size={32} strokeWidth={1.3} />
+              utsava<span>CELEBRATE TOGETHER</span>
+            </>
+          )}
         </Link>
 
         <div className="sidebar-scroll">
@@ -123,7 +152,9 @@ export function Shell({
       </aside>
       <div className="main-column">
         <header className="topbar">
-          <div className="topbar-status">
+          <div className="topbar-title">
+            {title ? <h1>{title}</h1> : <span />}
+            {description ? <p>{description}</p> : null}
             {saveStatus === "saving" && (
               <span className="save-indicator">Saving...</span>
             )}
@@ -134,6 +165,9 @@ export function Shell({
               <span className="save-indicator is-error">Save failed</span>
             )}
           </div>
+          <Suspense fallback={<div className="topbar-search" />}>
+            <TopbarSearch />
+          </Suspense>
           <Link href={spaceHref("/new", spaceId)} className="btn-add">
             <Plus size={16} /> New event
           </Link>

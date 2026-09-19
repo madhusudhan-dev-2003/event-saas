@@ -8,6 +8,7 @@ import {
   verifyEmail,
   requestReset,
   resetPassword,
+  setPassword,
 } from "@/app/account-actions";
 
 export function ProfileDetailsForm({ name }: { name: string }) {
@@ -45,11 +46,11 @@ export function PasswordForm() {
           type="password"
           name="password"
           autoComplete="new-password"
-          minLength={12}
+          minLength={6}
           maxLength={128}
           required
         />
-        <small>At least 12 characters.</small>
+        <small>At least 6 characters.</small>
       </label>
       <label>
         Confirm new password
@@ -57,7 +58,7 @@ export function PasswordForm() {
           type="password"
           name="confirm"
           autoComplete="new-password"
-          minLength={12}
+          minLength={6}
           maxLength={128}
           required
         />
@@ -90,10 +91,40 @@ export function VerificationForm({ token }: { token: string }) {
 }
 export function ResetRequest() {
   return (
-    <ActionForm action={requestReset} label="Request password reset">
+    <ActionForm action={requestReset} label="Send reset email">
       <label>
         Email
         <input type="email" name="email" autoComplete="email" required />
+      </label>
+    </ActionForm>
+  );
+}
+export function SetPasswordForm({ token }: { token: string }) {
+  return (
+    <ActionForm action={setPassword} label="Save password and continue">
+      <input type="hidden" name="token" value={token} />
+      <label>
+        Set a password
+        <input
+          type="password"
+          name="password"
+          autoComplete="new-password"
+          minLength={6}
+          maxLength={128}
+          required
+        />
+        <small>At least 6 characters.</small>
+      </label>
+      <label>
+        Confirm the password
+        <input
+          type="password"
+          name="confirm"
+          autoComplete="new-password"
+          minLength={6}
+          maxLength={128}
+          required
+        />
       </label>
     </ActionForm>
   );
@@ -108,11 +139,11 @@ export function ResetForm({ token }: { token: string }) {
           type="password"
           name="password"
           autoComplete="new-password"
-          minLength={12}
+          minLength={6}
           maxLength={128}
           required
         />
-        <small>At least 12 characters.</small>
+        <small>At least 6 characters.</small>
       </label>
       <label>
         Confirm new password
@@ -120,7 +151,7 @@ export function ResetForm({ token }: { token: string }) {
           type="password"
           name="confirm"
           autoComplete="new-password"
-          minLength={12}
+          minLength={6}
           maxLength={128}
           required
         />

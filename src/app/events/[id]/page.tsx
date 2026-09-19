@@ -35,6 +35,8 @@ export default async function EventPage({
       spaces={memberships.map((m) => m.space)}
       spaceId={event.spaceId}
       active="celebrations"
+      title={event.name}
+      description="Plan, guests, budget, and vendors for this celebration."
     >
       <EventEditor
         id={id}

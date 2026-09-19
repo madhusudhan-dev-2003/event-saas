@@ -1,25 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
-  ArrowRight,
-  CalendarDays,
-  ChevronDown,
-  CircleHelp,
-  ClipboardList,
-  Coins,
   Copy,
   Download,
   ExternalLink,
   Link2,
-  Settings2,
-  Sparkles,
-  Users,
 } from "@/components/icons";
 import { DeleteEventButton } from "@/components/delete-event-button";
+import { celebrationCover } from "@/lib/celebration-board";
 import {
   dateChanges,
+  formatEventStatus,
   modules,
   occasions,
   type Plan,
@@ -34,66 +27,28 @@ const CURRENCIES: Plan["currency"][] = [
   "AUD",
 ];
 
-const MODULE_LABELS: Record<(typeof modules)[number], string> = {
-  functions: "Functions",
-  seating: "Seating",
-  food: "Food",
-  rehearsals: "Rehearsals",
-  preparation: "Preparation",
+const STATUSES: Plan["status"][] = [
+  "DRAFT",
+  "PLANNING",
+  "COMPLETED",
+  "ARCHIVED",
+];
+
+const MODULE_COPY: Record<
+  Exclude<(typeof modules)[number], "seating">,
+  { title: string; hint: string }
+> = {
+  functions: { title: "Functions", hint: "Ceremony, reception, extra days" },
+  food: { title: "Food", hint: "Menu and servings" },
+  rehearsals: { title: "Rehearsals", hint: "Practice days" },
+  preparation: { title: "Preparation", hint: "Outfits and fittings" },
 };
-
-type SectionId =
-  | "basics"
-  | "status"
-  | "notes"
-  | "theme"
-  | "privacy"
-  | "advanced";
-
-function SettingsSection({
-  id,
-  title,
-  subtitle,
-  icon,
-  open,
-  onToggle,
-  children,
-}: {
-  id: SectionId;
-  title: string;
-  subtitle: string;
-  icon: ReactNode;
-  open: boolean;
-  onToggle: (id: SectionId) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`settings-acc${open ? " is-open" : ""}`}>
-      <button
-        type="button"
-        className="settings-acc-trigger"
-        aria-expanded={open}
-        onClick={() => onToggle(id)}
-      >
-        <span className="settings-acc-icon">{icon}</span>
-        <span>
-          <strong>{title}</strong>
-          <small>{subtitle}</small>
-        </span>
-        <ChevronDown
-          size={18}
-          className={open ? "is-rotated" : undefined}
-        />
-      </button>
-      {open && <div className="settings-acc-body">{children}</div>}
-    </section>
-  );
-}
 
 export function SettingsTab({
   eventId,
   name,
   plan,
+  spaceId,
   spaceName,
   templateKey,
   proposedDate,
@@ -116,6 +71,7 @@ export function SettingsTab({
   eventId: string;
   name: string;
   plan: Plan;
+  spaceId: string;
   spaceName: string;
   templateKey: string;
   proposedDate: string | null;
@@ -135,23 +91,13 @@ export function SettingsTab({
   onExport: () => void;
   onOpenGuests: () => void;
 }) {
-  const [open, setOpen] = useState<Record<SectionId, boolean>>({
-    basics: true,
-    status: false,
-    notes: false,
-    theme: false,
-    privacy: false,
-    advanced: false,
-  });
   const [copied, setCopied] = useState(false);
   const occasion = occasions.find((item) => item.key === templateKey);
   const workspacePath = `/events/${eventId}`;
   const dateValue = proposedDate ?? plan.date;
   const deadlinePreview =
     proposedDate !== null ? dateChanges(plan, proposedDate) : [];
-
-  const toggle = (id: SectionId) =>
-    setOpen((current) => ({ ...current, [id]: !current[id] }));
+  const cover = celebrationCover(templateKey, plan.coverUrl);
 
   const copyWorkspaceLink = async () => {
     const url = `${window.location.origin}${workspacePath}`;
@@ -166,38 +112,53 @@ export function SettingsTab({
 
   const saveLabel =
     saveStatus === "saving"
-      ? "Saving..."
+      ? "Saving"
       : saveStatus === "error"
         ? "Couldn’t save"
         : saveStatus === "idle" && dirty
-          ? "Editing..."
-          : "All changes saved automatically";
+          ? "Editing"
+          : "Saved";
+
+  const toggleModule = (module: (typeof modules)[number], on: boolean) => {
+    onUpdate({
+      ...plan,
+      modules: on
+        ? [...plan.modules, module]
+        : plan.modules.filter((item) => item !== module),
+    });
+  };
 
   return (
-    <div className="settings-tab">
-      <div className="settings-main">
-        <header className="settings-intro">
-          <h2>Your event, your way.</h2>
+    <div className="ev-settings">
+      <header className="ev-set-head">
+        <div>
+          <h2>Event settings</h2>
           <p>
-            Open a section when you need it. Fields stay tucked away until you
-            customize.
+            Changes write into this celebration’s plan and show on Overview,
+            Plan, and the guest-facing details.
           </p>
-          {!editable && (
-            <p className="notice">
-              You can view these settings. Ask an owner if you need to make
-              changes.
-            </p>
-          )}
-        </header>
-
-        <SettingsSection
-          id="basics"
-          title="Event basics"
-          subtitle="Name, date, and where it happens"
-          icon={<CalendarDays size={18} strokeWidth={1.8} />}
-          open={open.basics}
-          onToggle={toggle}
+        </div>
+        <span
+          className={`ev-set-save${saveStatus === "error" ? " is-error" : ""}${
+            saveStatus === "saving" || (saveStatus === "idle" && dirty)
+              ? " is-busy"
+              : ""
+          }`}
+          role="status"
         >
+          {saveLabel}
+        </span>
+      </header>
+
+      {!editable && (
+        <p className="notice">
+          You can view these settings. Ask an owner if you need to make changes.
+        </p>
+      )}
+
+      <div className="ev-set-grid">
+        <section className="ev-set-card ev-set-wide">
+          <h3>When and where</h3>
           <div className="field-grid">
             <label>
               Event name
@@ -209,7 +170,7 @@ export function SettingsTab({
               />
             </label>
             <label>
-              Event date
+              Date
               <input
                 type="date"
                 value={dateValue}
@@ -218,12 +179,12 @@ export function SettingsTab({
               />
             </label>
             <label>
-              Event location
+              Location
               <input
                 value={plan.location}
                 maxLength={160}
                 disabled={!editable || pending}
-                placeholder="Location not set"
+                placeholder="Venue or city"
                 onChange={(e) =>
                   onUpdate({ ...plan, location: e.target.value })
                 }
@@ -233,9 +194,7 @@ export function SettingsTab({
           {proposedDate !== null && (
             <div className="schedule-proposal">
               <h3>Review the date change</h3>
-              <p>
-                Fixed and completed task deadlines will stay as they are.
-              </p>
+              <p>Fixed and completed task deadlines stay as they are.</p>
               {deadlinePreview.map((change) => (
                 <p key={change.id}>
                   {change.title}: {change.before || "Unscheduled"} to{" "}
@@ -243,103 +202,69 @@ export function SettingsTab({
                 </p>
               ))}
               <button type="button" className="secondary" onClick={onApplyDate}>
-                Apply date & suggested deadlines
+                Apply date and suggested deadlines
               </button>
-              <button type="button" className="text-button" onClick={onApplyDateOnly}>
+              <button
+                type="button"
+                className="text-button"
+                onClick={onApplyDateOnly}
+              >
                 Change event date only
               </button>
-              <button type="button" className="text-button" onClick={onCancelDate}>
+              <button
+                type="button"
+                className="text-button"
+                onClick={onCancelDate}
+              >
                 Cancel
               </button>
             </div>
           )}
-        </SettingsSection>
+        </section>
 
-        <SettingsSection
-          id="status"
-          title="Status & money"
-          subtitle="Planning status and currency"
-          icon={<Coins size={18} strokeWidth={1.8} />}
-          open={open.status}
-          onToggle={toggle}
-        >
-          <div className="field-grid">
-            <label>
-              Event status
-              <select
-                value={plan.status}
+        <section className="ev-set-card">
+          <h3>Status</h3>
+          <div className="ev-set-status" role="group" aria-label="Event status">
+            {STATUSES.map((status) => (
+              <button
+                key={status}
+                type="button"
+                className={plan.status === status ? "is-on" : undefined}
                 disabled={!editable || pending}
-                onChange={(e) =>
-                  onUpdate({
-                    ...plan,
-                    status: e.target.value as Plan["status"],
-                  })
-                }
+                onClick={() => onUpdate({ ...plan, status })}
               >
-                <option value="DRAFT">Draft</option>
-                <option value="PLANNING">Planning</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="ARCHIVED">Archived</option>
-              </select>
-            </label>
-            <label>
-              Currency
-              <select
-                value={plan.currency}
-                disabled={!editable || pending}
-                onChange={(e) =>
-                  onCurrencyChange(e.target.value as Plan["currency"])
-                }
-              >
-                {CURRENCIES.map((code) => (
-                  <option key={code} value={code}>
-                    {code}
-                  </option>
-                ))}
-              </select>
-              <small>Changing currency does not convert amounts.</small>
-            </label>
+                {formatEventStatus(status)}
+              </button>
+            ))}
           </div>
-        </SettingsSection>
-
-        <SettingsSection
-          id="notes"
-          title="Description"
-          subtitle="Share the story, add notes, or include special details"
-          icon={<ClipboardList size={18} strokeWidth={1.8} />}
-          open={open.notes}
-          onToggle={toggle}
-        >
           <label>
-            Event description
-            <textarea
-              value={plan.notes}
-              maxLength={2000}
-              rows={5}
+            Currency
+            <select
+              value={plan.currency}
               disabled={!editable || pending}
-              placeholder="Theme ideas, contacts, or reminders for your team."
-              onChange={(e) => onUpdate({ ...plan, notes: e.target.value })}
-            />
+              onChange={(e) =>
+                onCurrencyChange(e.target.value as Plan["currency"])
+              }
+            >
+              {CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+            <small>Changing currency does not convert amounts.</small>
           </label>
-        </SettingsSection>
+        </section>
 
-        <SettingsSection
-          id="theme"
-          title="Theme & visuals"
-          subtitle="Occasion look and the modules shown on this event"
-          icon={<Sparkles size={18} strokeWidth={1.8} />}
-          open={open.theme}
-          onToggle={toggle}
-        >
-          <div className="settings-theme-preview">
-            <span className={`settings-theme-swatch event-hero-${occasion?.color || "ivory"}`}>
-              {occasion?.glyph || "✳"}
-            </span>
+        <section className="ev-set-card">
+          <h3>Look</h3>
+          <div className="ev-set-cover">
+            <img src={cover} alt="" />
             <div>
               <strong>{occasion?.name || "Celebration"}</strong>
               <p>
-                Cards use this occasion cover by default. You can point to a
-                hosted image URL; files are not uploaded into the event plan.
+                Occasion cover is used unless you set a hosted image URL. Files
+                are not uploaded into the plan.
               </p>
             </div>
           </div>
@@ -356,61 +281,75 @@ export function SettingsTab({
             />
             <small>Leave blank to use the occasion cover.</small>
           </label>
-          <p className="settings-acc-help">
-            Turning a module off hides its tab and keeps its saved details.
-          </p>
-          {modules
-            .filter((module) => module !== "seating")
-            .map((module) => (
-              <label className="check-label" key={module}>
-                <input
-                  type="checkbox"
-                  checked={plan.modules.includes(module)}
-                  disabled={!editable || pending}
-                  onChange={(e) =>
-                    onUpdate({
-                      ...plan,
-                      modules: e.target.checked
-                        ? [...plan.modules, module]
-                        : plan.modules.filter((item) => item !== module),
-                    })
-                  }
-                />
-                {MODULE_LABELS[module]}
-              </label>
-            ))}
-        </SettingsSection>
+        </section>
 
-        <SettingsSection
-          id="privacy"
-          title="Privacy & sharing"
-          subtitle="Control who can view and respond"
-          icon={<Users size={18} strokeWidth={1.8} />}
-          open={open.privacy}
-          onToggle={toggle}
-        >
+        <section className="ev-set-card">
+          <h3>Extra tabs</h3>
+          <p>Turning a module off hides its tab and keeps saved details.</p>
+          <div className="ev-set-modules">
+            {(Object.keys(MODULE_COPY) as Array<keyof typeof MODULE_COPY>).map(
+              (module) => {
+                const on = plan.modules.includes(module);
+                return (
+                  <button
+                    key={module}
+                    type="button"
+                    className={on ? "is-on" : undefined}
+                    disabled={!editable || pending}
+                    aria-pressed={on}
+                    onClick={() => toggleModule(module, !on)}
+                  >
+                    <strong>{MODULE_COPY[module].title}</strong>
+                    <span>{MODULE_COPY[module].hint}</span>
+                  </button>
+                );
+              },
+            )}
+          </div>
+        </section>
+
+        <section className="ev-set-card ev-set-wide">
+          <h3>Notes</h3>
+          <label>
+            For your team
+            <textarea
+              value={plan.notes}
+              maxLength={2000}
+              rows={4}
+              disabled={!editable || pending}
+              placeholder="Theme, contacts, or reminders."
+              onChange={(e) => onUpdate({ ...plan, notes: e.target.value })}
+            />
+          </label>
+        </section>
+
+        <section className="ev-set-card">
+          <h3>Sharing</h3>
           <p>
-            Access follows <strong>{spaceName}</strong> membership. This
-            celebration does not have event-only privacy settings.
+            Access follows <strong>{spaceName}</strong>. There is no public
+            event page. Guests and vendors get private links.
           </p>
-          <p>
-            Guests receive private RSVP links. Quote links are private to each
-            provider. There is no public event page.
-          </p>
+          <div className="settings-link-row">
+            <code>{workspacePath}</code>
+            <button
+              type="button"
+              className="settings-copy-btn"
+              aria-label="Copy workspace link"
+              onClick={copyWorkspaceLink}
+            >
+              <Copy size={15} />
+            </button>
+          </div>
+          {copied ? <p className="settings-copied">Copied workspace link</p> : null}
           <button type="button" className="secondary" onClick={onOpenGuests}>
+            <Link2 size={15} />
             Manage guest RSVP links
           </button>
-        </SettingsSection>
+        </section>
 
-        <SettingsSection
-          id="advanced"
-          title="Advanced settings"
-          subtitle="Duplicate event, export data, or delete this celebration"
-          icon={<Settings2 size={18} strokeWidth={1.8} />}
-          open={open.advanced}
-          onToggle={toggle}
-        >
-          <div className="settings-advanced-actions">
+        <section className="ev-set-card">
+          <h3>Keep or remove</h3>
+          <div className="ev-set-actions">
             {editable && (
               <button
                 type="button"
@@ -427,110 +366,22 @@ export function SettingsTab({
               disabled={dirty}
               onClick={onExport}
             >
-              <Download size={14} /> Export event data
+              <Download size={14} /> Export plan
             </button>
             {canDelete && (
               <DeleteEventButton id={eventId} name={name} />
             )}
           </div>
           <small>
-            Duplicate copies the plan structure and clears guests, payments, and
-            vendor commitments. Exports include private planning details.
+            Duplicate copies structure and clears guests, payments, and vendor
+            commitments. Exports include private planning details.
           </small>
-        </SettingsSection>
-
-        <p
-          className={`settings-save-status${saveStatus === "error" ? " is-error" : ""}`}
-          role="status"
-        >
-          {saveLabel}
-        </p>
-      </div>
-
-      <aside className="settings-side">
-        <section className="settings-side-card">
-          <div className="settings-side-head">
-            <Link2 size={18} strokeWidth={1.8} />
-            <div>
-              <h3>Event link</h3>
-              <p>Share this event with guests</p>
-            </div>
-          </div>
-          <p className="settings-link-copy">
-            There is no public event page. Space members use this workspace
-            link. Guests need a private RSVP link from the Guests tab.
-          </p>
-          <div className="settings-link-row">
-            <code>{workspacePath}</code>
-            <button
-              type="button"
-              className="settings-copy-btn"
-              aria-label="Copy workspace link"
-              onClick={copyWorkspaceLink}
-            >
-              <Copy size={15} />
-            </button>
-          </div>
-          {copied && <p className="settings-copied">Copied workspace link</p>}
-          <button type="button" className="secondary" onClick={onOpenGuests}>
-            Manage guest RSVP links
-          </button>
-        </section>
-
-        <section className="settings-side-card">
-          <div className="settings-side-head">
-            <Sparkles size={18} strokeWidth={1.8} />
-            <div>
-              <h3>Quick actions</h3>
-              <p>Common actions for this celebration</p>
-            </div>
-          </div>
-          <div className="settings-quick-list">
-            {editable && (
-              <button
-                type="button"
-                className="settings-quick-btn"
-                disabled={pending || dirty}
-                onClick={onReuse}
-              >
-                <ClipboardList size={16} />
-                Duplicate this event
-                <ArrowRight size={16} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="settings-quick-btn"
-              disabled={dirty}
-              onClick={onExport}
-            >
-              <Download size={16} />
-              Export event data
-              <ArrowRight size={16} />
-            </button>
-            {canDelete && (
-              <DeleteEventButton id={eventId} name={name} variant="row" />
-            )}
-          </div>
-        </section>
-
-        <section className="settings-side-card settings-help-card">
-          <div className="settings-side-head">
-            <CircleHelp size={18} strokeWidth={1.8} />
-            <div>
-              <h3>Need help?</h3>
-              <p>
-                Check our help center or contact support if you need
-                assistance.
-              </p>
-            </div>
-          </div>
-          <Link className="secondary" href="/help">
-            Go to help center
-            <ExternalLink size={14} />
+          <Link className="ev-set-help" href={`/help?space=${spaceId}`}>
+            Planning guide
+            <ExternalLink size={13} />
           </Link>
         </section>
-      </aside>
+      </div>
     </div>
   );
 }

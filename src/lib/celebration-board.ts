@@ -12,11 +12,13 @@ export type CelebrationRecord = {
   guestLinks: { maxGuests: number; attending: number }[];
 };
 
+const COVER_REV = "3";
+
 export function celebrationCover(templateKey: string, coverUrl = "") {
   const custom = coverUrl.trim();
   if (custom) return custom;
-  if (DEFAULT_COVERS.has(templateKey)) return `/covers/${templateKey}.png`;
-  return "/covers/blank.png";
+  const file = DEFAULT_COVERS.has(templateKey) ? templateKey : "blank";
+  return `/covers/${file}.png?v=${COVER_REV}`;
 }
 
 export function guestCapacity(links: CelebrationRecord["guestLinks"]) {

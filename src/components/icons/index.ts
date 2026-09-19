@@ -26,6 +26,7 @@ export {
   Music,
   Pencil,
   Plus,
+  Printer,
   ScanLine,
   Search,
   Settings2,

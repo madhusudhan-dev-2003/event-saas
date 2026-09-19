@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
+  Copy,
   Download,
   MapPin,
   MoreHorizontal,
   Pencil,
+  Printer,
 } from "@/components/icons";
 import { Modal } from "@/components/modals";
 import { DeleteEventButton } from "@/components/delete-event-button";
@@ -96,76 +98,81 @@ export function EventDetailHeader({
           <p className="event-hero-notes">{plan.notes}</p>
         ) : null}
       </div>
-      <div className="event-hero-visual" aria-hidden="true">
-        <div className="event-hero-photo">
-          <img
-            className="event-hero-cover"
-            src={celebrationCover(templateKey, plan.coverUrl)}
-            alt=""
-          />
-        </div>
+      <div className="event-hero-media" aria-hidden="true">
+        <img
+          className="event-hero-cover"
+          src={celebrationCover(templateKey, plan.coverUrl)}
+          alt=""
+        />
       </div>
       <div className="event-hero-actions">
-        {editable && (
-          <button
-            type="button"
-            className="event-hero-edit"
-            onClick={onOpenDetails}
-          >
-            <Pencil size={15} strokeWidth={1.8} />
-            Edit details
-          </button>
-        )}
-        <div className="event-more" ref={menuRef}>
-          <button
-            type="button"
-            className="event-hero-more"
-            aria-label="More event actions"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            <MoreHorizontal size={18} />
-          </button>
-          {menuOpen && (
-            <div className="event-more-menu" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                disabled={!editable || pending || dirty}
-                onClick={() => {
-                  setMenuOpen(false);
-                  onReuse();
-                }}
-              >
-                Reuse this plan
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={dirty}
-                onClick={() => {
-                  setMenuOpen(false);
-                  onExport();
-                }}
-              >
-                <Download size={14} /> Export plan
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  window.print();
-                }}
-              >
-                Print
-              </button>
-              {canDelete && (
-                <DeleteEventButton id={eventId} name={name} />
-              )}
-            </div>
+          {editable && (
+            <button
+              type="button"
+              className="event-hero-edit"
+              onClick={onOpenDetails}
+            >
+              <Pencil size={15} strokeWidth={1.8} />
+              Edit details
+            </button>
           )}
-        </div>
+          <div className="event-more" ref={menuRef}>
+            <button
+              type="button"
+              className="event-hero-more"
+              aria-label="More event actions"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <MoreHorizontal size={18} />
+            </button>
+            {menuOpen && (
+              <div className="event-more-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!editable || pending || dirty}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onReuse();
+                  }}
+                >
+                  <Copy size={14} />
+                  Reuse this plan
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={dirty}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onExport();
+                  }}
+                >
+                  <Download size={14} />
+                  Export plan
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    window.print();
+                  }}
+                >
+                  <Printer size={14} />
+                  Print
+                </button>
+                {canDelete && (
+                  <DeleteEventButton
+                    id={eventId}
+                    name={name}
+                    variant="menu"
+                  />
+                )}
+              </div>
+            )}
+          </div>
       </div>
       {editable && (saveStatus !== "idle" || dirty) && (
         <div

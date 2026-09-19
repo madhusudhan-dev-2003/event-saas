@@ -6,10 +6,21 @@ import {
   createSpaceRole,
   deleteSpaceRole,
   saveMemberAccess,
+  updateSpaceInvite,
   updateSpaceRole,
 } from "@/app/actions";
 import { AccessMatrix } from "@/components/access-matrix";
+import { Modal } from "@/components/modals";
+import { RevokeInviteForm } from "@/components/space-settings-forms";
 import type { Permission } from "@/lib/permissions";
+
+export type PendingInvite = {
+  id: string;
+  email: string;
+  roleId: string;
+  roleName: string;
+  expiresAt: string;
+};
 
 function Feedback({
   state,
@@ -57,39 +68,26 @@ export function InviteUserForm({
       ? `${window.location.origin}${state.path}`
       : "";
     setLink(url);
-    const toCopy = state.password || url;
-    if (toCopy) {
-      navigator.clipboard?.writeText(toCopy).then(() => setCopied(true)).catch(() => {});
+    if (url) {
+      navigator.clipboard?.writeText(url).then(() => setCopied(true)).catch(() => {});
     }
-    if (state.password) return;
+    if (state.path) return;
     const timer = window.setTimeout(() => onDone?.(), 2200);
     return () => window.clearTimeout(timer);
-  }, [state.success, state.path, state.password, onDone]);
+  }, [state.success, state.path, onDone]);
 
   if (state.success) {
     return (
       <div className="invite-success">
         <p className="notice" role="status">
           {state.success}
-          {copied && state.password
-            ? " The temporary password was copied."
-            : copied && link
-              ? " The private link was copied."
-              : ""}
+          {copied && link ? " The link was copied." : ""}
         </p>
-        {state.password ? (
-          <label className="share-link">
-            Temporary password — share this once
-            <input
-              readOnly
-              value={state.password}
-              onFocus={(e) => e.target.select()}
-            />
-          </label>
-        ) : null}
         {link ? (
           <label className="share-link">
-            Private invitation link
+            {link.includes("/account/set/")
+              ? "Set-password link"
+              : "Private invitation link"}
             <input readOnly value={link} onFocus={(e) => e.target.select()} />
           </label>
         ) : null}
@@ -124,7 +122,7 @@ export function InviteUserForm({
       </div>
       <p className="modal-lead">
         {mode === "add"
-          ? "They appear in this space immediately. Email the sign-in details only if you want to."
+          ? "New people get an email to set a password. Existing accounts are added immediately."
           : "Creates a pending invitation. They join after they accept. Email the link only if you want to."}
       </p>
       <input type="hidden" name="spaceId" value={spaceId} />
@@ -149,14 +147,17 @@ export function InviteUserForm({
           ))}
         </select>
       </label>
-      <label className="check-row">
-        <input type="checkbox" name="sendEmail" value="1" />
-        <span>
-          {mode === "add"
-            ? "Email them a sign-in link"
-            : "Email them the invitation link"}
-        </span>
-      </label>
+      {mode === "invite" ? (
+        <label className="check-row">
+          <input type="checkbox" name="sendEmail" value="1" />
+          <span>Email them the invitation link</span>
+        </label>
+      ) : (
+        <label className="check-row">
+          <input type="checkbox" name="sendEmail" value="1" />
+          <span>If they already have an account, email them that they were added</span>
+        </label>
+      )}
       <button
         type="submit"
         className="primary"
@@ -184,6 +185,7 @@ export function EditMemberForm({
   member,
   roles,
   canChangeRole,
+  canSetPassword,
 }: {
   spaceId: string;
   member: {
@@ -201,6 +203,7 @@ export function EditMemberForm({
     permissions: string[];
   }[];
   canChangeRole: boolean;
+  canSetPassword?: boolean;
 }) {
   const [state, action, pending] = useActionState(saveMemberAccess, {});
   const [roleId, setRoleId] = useState(member.roleId);
@@ -271,6 +274,39 @@ export function EditMemberForm({
             )
           }
         />
+        {canSetPassword ? (
+          <div className="access-copy">
+            <h3>Password</h3>
+            <p>Leave blank to keep their current password. Other devices will be signed out.</p>
+            <div className="field-grid field-grid-modal">
+              <label>
+                New password
+                <input
+                  type="password"
+                  name="password"
+                  minLength={6}
+                  maxLength={128}
+                  autoComplete="new-password"
+                />
+                <small>At least 6 characters.</small>
+              </label>
+              <label>
+                Confirm password
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  minLength={6}
+                  maxLength={128}
+                  autoComplete="new-password"
+                />
+              </label>
+            </div>
+            <label className="check-row">
+              <input type="checkbox" name="emailPassword" value="1" />
+              <span>Email them the new password</span>
+            </label>
+          </div>
+        ) : null}
       </div>
       <div className="access-form-actions">
         <Feedback state={state} />
@@ -390,6 +426,162 @@ export function EditRoleForm({
         )}
       </div>
     </form>
+  );
+}
+
+export function EditInviteForm({
+  spaceId,
+  invite,
+  roles,
+  onDone,
+}: {
+  spaceId: string;
+  invite: PendingInvite;
+  roles: { id: string; name: string }[];
+  onDone?: () => void;
+}) {
+  const [state, action, pending] = useActionState(updateSpaceInvite, {});
+  const [copied, setCopied] = useState(false);
+  const [link, setLink] = useState("");
+
+  useEffect(() => {
+    if (!state.success) return;
+    const url = state.path ? `${window.location.origin}${state.path}` : "";
+    setLink(url);
+    if (url) {
+      navigator.clipboard?.writeText(url).then(() => setCopied(true)).catch(() => {});
+    }
+    if (state.path) return;
+    const timer = window.setTimeout(() => onDone?.(), 1600);
+    return () => window.clearTimeout(timer);
+  }, [state.success, state.path, onDone]);
+
+  if (state.success) {
+    return (
+      <div className="invite-success">
+        <p className="notice" role="status">
+          {state.success}
+          {copied && link ? " The new private link was copied." : ""}
+        </p>
+        {link ? (
+          <label className="share-link">
+            Private invitation link
+            <input readOnly value={link} onFocus={(e) => e.target.select()} />
+          </label>
+        ) : null}
+        <button type="button" className="primary" onClick={() => onDone?.()}>
+          Done
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form action={action} className="stack-form">
+      <input type="hidden" name="spaceId" value={spaceId} />
+      <input type="hidden" name="inviteId" value={invite.id} />
+      <label>
+        Email
+        <input
+          name="email"
+          type="email"
+          required
+          maxLength={254}
+          defaultValue={invite.email}
+        />
+      </label>
+      <label>
+        Role
+        <select name="roleId" required defaultValue={invite.roleId}>
+          {roles.map((role) => (
+            <option key={role.id} value={role.id}>
+              {role.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="modal-lead">
+        Expires {new Date(invite.expiresAt).toLocaleDateString("en-GB")}. The
+        current link keeps working unless you create a new one.
+      </p>
+      <label className="check-row">
+        <input type="checkbox" name="extendExpiry" value="1" />
+        <span>Extend expiry by 7 days</span>
+      </label>
+      <label className="check-row">
+        <input type="checkbox" name="newLink" value="1" />
+        <span>Create a new invitation link</span>
+      </label>
+      <label className="check-row">
+        <input type="checkbox" name="sendEmail" value="1" />
+        <span>Email them the invitation link</span>
+      </label>
+      <button type="submit" className="primary" disabled={pending || !roles.length}>
+        {pending ? "Saving..." : "Save invitation"}
+      </button>
+      {state.error ? (
+        <p className="error" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+export function PendingInviteList({
+  spaceId,
+  invites,
+  roles,
+}: {
+  spaceId: string;
+  invites: PendingInvite[];
+  roles: { id: string; name: string }[];
+}) {
+  const [editInvite, setEditInvite] = useState<PendingInvite | null>(null);
+  if (!invites.length) {
+    return <p className="empty-inline">No pending invitations.</p>;
+  }
+  return (
+    <>
+      <div className="invite-manage-list">
+        {invites.map((invite) => (
+          <div className="invite-manage-row" key={invite.id}>
+            <span>
+              <strong>{invite.email}</strong>
+              <small>
+                {invite.roleName} · expires{" "}
+                {new Date(invite.expiresAt).toLocaleDateString("en-GB")}
+              </small>
+            </span>
+            <div className="invite-manage-actions">
+              <button
+                type="button"
+                className="btn-compact"
+                onClick={() => setEditInvite(invite)}
+              >
+                Edit
+              </button>
+              <RevokeInviteForm spaceId={spaceId} inviteId={invite.id} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <Modal
+        open={!!editInvite}
+        onClose={() => setEditInvite(null)}
+        title="Edit invitation"
+        compact
+      >
+        {editInvite ? (
+          <EditInviteForm
+            spaceId={spaceId}
+            invite={editInvite}
+            roles={roles}
+            onDone={() => setEditInvite(null)}
+          />
+        ) : null}
+      </Modal>
+    </>
   );
 }
 

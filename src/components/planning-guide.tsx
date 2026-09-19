@@ -84,22 +84,29 @@ const EVENT_AREAS = [
   },
 ] as const;
 
-export function PlanningGuide({ spaceId }: { spaceId: string }) {
+export function PlanningGuide({
+  spaceId,
+  query = "",
+}: {
+  spaceId: string;
+  query?: string;
+}) {
+  const q = query.trim().toLowerCase();
+  const steps = STEPS.filter(
+    (step) =>
+      !q ||
+      step.title.toLowerCase().includes(q) ||
+      step.body.toLowerCase().includes(q) ||
+      step.cta.toLowerCase().includes(q),
+  );
+  const areas = EVENT_AREAS.filter(
+    (area) =>
+      !q ||
+      area.title.toLowerCase().includes(q) ||
+      area.body.toLowerCase().includes(q),
+  );
   return (
     <div className="guide-hub">
-      <header className="page-header-bar">
-        <div>
-          <h1>Planning guide</h1>
-          <p>
-            How Utsava is meant to be used — private spaces, real records, and
-            links you share on purpose.
-          </p>
-        </div>
-        <Link className="btn-add" href={href("/new", spaceId)}>
-          <Sparkles size={16} /> Start a celebration
-        </Link>
-      </header>
-
       <div className="celeb-kpi-grid users-kpi-grid">
         <div className="celeb-kpi">
           <span className="celeb-kpi-icon is-rose">
@@ -143,7 +150,7 @@ export function PlanningGuide({ spaceId }: { spaceId: string }) {
       <section>
         <h2 className="guide-section-title">Work through it in order</h2>
         <div className="guide-step-grid">
-          {STEPS.map((step) => (
+          {steps.map((step) => (
             <article className="guide-step" key={step.n}>
               <span className="guide-step-n">{step.n}</span>
               <h3>{step.title}</h3>
@@ -157,7 +164,7 @@ export function PlanningGuide({ spaceId }: { spaceId: string }) {
       <section>
         <h2 className="guide-section-title">Inside a celebration</h2>
         <div className="guide-area-grid">
-          {EVENT_AREAS.map((area) => (
+          {areas.map((area) => (
             <article className="guide-area" key={area.title}>
               <span className="celeb-kpi-icon is-blush">
                 <area.icon size={18} />

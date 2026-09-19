@@ -34,6 +34,16 @@ model Space {
   invites Invitation[]
   roles SpaceRole[]
   subscription Subscription?
+  brand SpaceBrand?
+}
+model SpaceBrand {
+  spaceId String @id
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  logoBytes Bytes?
+  logoMime String?
+  faviconBytes Bytes?
+  faviconMime String?
+  updatedAt DateTime @updatedAt
 }
 model SpaceRole {
   id String @id @default(cuid())

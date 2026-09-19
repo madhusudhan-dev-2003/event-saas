@@ -5,10 +5,29 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser, startSession, limit } from "@/lib/auth";
-import { hashToken, token, passwordHash, verifyPassword } from "@/lib/security";
+import {
+  hashToken,
+  token,
+  passwordHash,
+  verifyPassword,
+  PASSWORD_MIN_LENGTH,
+} from "@/lib/security";
 import { mailConfigured, sendAppEmail } from "@/lib/mail";
+import {
+  FAVICON_MAX_BYTES,
+  LOGO_MAX_BYTES,
+  isBrandImageType,
+} from "@/lib/brand";
+import { issueAccountLink } from "@/lib/account-tokens";
 import { appUrl } from "@/lib/stripe";
-import { newPlan, planSchema, reusePlan, nextActions } from "@/lib/planning";
+import {
+  dateChanges,
+  isoDate,
+  newPlan,
+  nextActions,
+  planSchema,
+  reusePlan,
+} from "@/lib/planning";
 import { can, GRANTABLE_PERMISSIONS, parsePermissions, planMemberAccessChange } from "@/lib/permissions";
 import {
   createSpaceWithOwner,
@@ -34,7 +53,7 @@ function error(e: unknown): Result {
       e instanceof z.ZodError
         ? e.issues[0].message
         : e instanceof Error &&
-            /Too many|changed|access|configured|available|already|expired|confirm|valid|match|Select|permission|role|Owner|invite|Password|Leave|Delete|current|space|session|Transfer|Type|Email|member/.test(
+            /Too many|changed|access|configured|available|already|expired|confirm|valid|match|Select|permission|role|Owner|invite|Password|Leave|Delete|current|space|session|Transfer|Type|Email|member|Logo|Favicon|Choose|PNG/.test(
               e.message,
             )
           ? e.message
@@ -59,7 +78,7 @@ export async function authenticate(_: Result, form: FormData): Promise<Result> {
       );
     const password = z
       .string()
-      .min(12, "Use at least 12 characters.")
+      .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters.`)
       .max(128)
       .parse(form.get("password"));
     await limit(`login:${hashToken(email)}`, 8, 900);
@@ -67,7 +86,7 @@ export async function authenticate(_: Result, form: FormData): Promise<Result> {
     if (form.get("mode") === "register") {
       if (user)
         return {
-          error: "Unable to create this account. Try signing in instead.",
+          error: "This email already exists. Try to login.",
         };
       const name = nameSchema.parse(form.get("name"));
       user = await db.user.create({
@@ -82,8 +101,25 @@ export async function authenticate(_: Result, form: FormData): Promise<Result> {
         kind: "FAMILY",
         userId: user.id,
       });
-    } else if (!user || !verifyPassword(password, user.passwordHash))
-      return { error: "Email or password did not match." };
+    } else if (!user)
+      return {
+        error: "No account exists for this email. Try creating an account.",
+      };
+    else if (!verifyPassword(password, user.passwordHash)) {
+      const pendingSet = await db.accountToken.findFirst({
+        where: {
+          userId: user.id,
+          purpose: "SET",
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      return {
+        error: pendingSet
+          ? "Check your email and set a password before signing in."
+          : "Incorrect password for this user.",
+      };
+    }
     await startSession(user.id);
     const invite = String(form.get("invite") || "");
     if (/^[a-f0-9]{64}$/.test(invite)) destination = `/invite/${invite}`;
@@ -142,6 +178,96 @@ export async function updateSpace(
     revalidatePath(`/spaces/${spaceId}`);
     revalidatePath("/dashboard");
     return { success: "Space details saved." };
+  } catch (e) {
+    return error(e);
+  }
+}
+
+async function readBrandImage(
+  form: FormData,
+  field: string,
+  maxBytes: number,
+) {
+  const file = form.get(field);
+  if (!(file instanceof File) || file.size === 0) return null;
+  if (file.size > maxBytes)
+    throw new Error(
+      field === "logo"
+        ? "Logo must be 1 MB or smaller."
+        : "Favicon must be 256 KB or smaller.",
+    );
+  if (!isBrandImageType(file.type))
+    throw new Error("Use a PNG, JPG, WEBP, SVG, GIF, or ICO image.");
+  return {
+    bytes: Buffer.from(await file.arrayBuffer()),
+    mime: file.type,
+  };
+}
+
+export async function updateSpaceBrand(
+  _: Result,
+  form: FormData,
+): Promise<Result> {
+  const user = await requireUser();
+  try {
+    const spaceId = z.string().min(1).parse(form.get("spaceId"));
+    const access = await getMembershipAccess(spaceId, user.id);
+    if (!access || !can(access.permissions, "settings.manage"))
+      throw new Error("You do not have access to change space branding.");
+    const logo = await readBrandImage(form, "logo", LOGO_MAX_BYTES);
+    const favicon = await readBrandImage(form, "favicon", FAVICON_MAX_BYTES);
+    if (!logo && !favicon)
+      throw new Error("Choose a logo or favicon to upload.");
+    await db.spaceBrand.upsert({
+      where: { spaceId },
+      create: {
+        spaceId,
+        logoBytes: logo?.bytes,
+        logoMime: logo?.mime,
+        faviconBytes: favicon?.bytes,
+        faviconMime: favicon?.mime,
+      },
+      update: {
+        ...(logo
+          ? { logoBytes: logo.bytes, logoMime: logo.mime }
+          : {}),
+        ...(favicon
+          ? { faviconBytes: favicon.bytes, faviconMime: favicon.mime }
+          : {}),
+      },
+    });
+    revalidatePath(`/settings?space=${spaceId}`);
+    revalidatePath("/", "layout");
+    return { success: "Branding saved." };
+  } catch (e) {
+    return error(e);
+  }
+}
+
+export async function removeSpaceBrand(
+  _: Result,
+  form: FormData,
+): Promise<Result> {
+  const user = await requireUser();
+  try {
+    const spaceId = z.string().min(1).parse(form.get("spaceId"));
+    const kind = z.enum(["logo", "favicon"]).parse(form.get("kind"));
+    const access = await getMembershipAccess(spaceId, user.id);
+    if (!access || !can(access.permissions, "settings.manage"))
+      throw new Error("You do not have access to change space branding.");
+    await db.spaceBrand.upsert({
+      where: { spaceId },
+      create: { spaceId },
+      update:
+        kind === "logo"
+          ? { logoBytes: null, logoMime: null }
+          : { faviconBytes: null, faviconMime: null },
+    });
+    revalidatePath(`/settings?space=${spaceId}`);
+    revalidatePath("/", "layout");
+    return {
+      success: kind === "logo" ? "Logo removed." : "Favicon removed.",
+    };
   } catch (e) {
     return error(e);
   }
@@ -258,7 +384,124 @@ export async function revokeSpaceInvite(
     if (!result.count) throw new Error("This invitation is no longer pending.");
     revalidatePath(`/spaces/${spaceId}`);
     revalidatePath(`/users?space=${spaceId}`);
+    revalidatePath(`/settings?space=${spaceId}`);
     return { success: "Invitation revoked." };
+  } catch (e) {
+    return error(e);
+  }
+}
+
+export async function updateSpaceInvite(
+  _: Result,
+  form: FormData,
+): Promise<Result> {
+  const user = await requireUser();
+  try {
+    const spaceId = z.string().min(1).parse(form.get("spaceId"));
+    const inviteId = z.string().min(1).parse(form.get("inviteId"));
+    const email = z.email().parse(
+      String(form.get("email") || "")
+        .trim()
+        .toLowerCase(),
+    );
+    const roleId = z.string().min(1).parse(form.get("roleId"));
+    const extendExpiry = form.get("extendExpiry") === "1";
+    const sendEmail = form.get("sendEmail") === "1";
+    const newLink = form.get("newLink") === "1" || sendEmail;
+    const access = await getMembershipAccess(spaceId, user.id);
+    if (
+      !access ||
+      (!can(access.permissions, "users.manage") &&
+        !can(access.permissions, "users.invite"))
+    )
+      throw new Error("You do not have access to change invitations.");
+    const role = await parseInviteRole(spaceId, roleId, access);
+    const invite = await db.invitation.findFirst({
+      where: {
+        id: inviteId,
+        spaceId,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (!invite) throw new Error("This invitation is no longer pending.");
+    const existingMember = await db.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingMember) {
+      const membership = await db.membership.findUnique({
+        where: { spaceId_userId: { spaceId, userId: existingMember.id } },
+      });
+      if (membership)
+        throw new Error("This person is already a member of this space.");
+    }
+    const other = await db.invitation.findFirst({
+      where: {
+        spaceId,
+        email,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        NOT: { id: inviteId },
+      },
+    });
+    if (other)
+      throw new Error("Another pending invitation already uses this email.");
+    if (sendEmail && !mailConfigured())
+      throw new Error("Email delivery is not configured yet.");
+    const raw = newLink ? token() : "";
+    const expiresAt = extendExpiry
+      ? new Date(Date.now() + 7 * 86400000)
+      : invite.expiresAt;
+    await db.invitation.update({
+      where: { id: inviteId },
+      data: {
+        email,
+        roleId: role.id,
+        expiresAt,
+        ...(newLink ? { tokenHash: hashToken(raw) } : {}),
+      },
+    });
+    const path = newLink ? `/invite/${raw}` : undefined;
+    if (sendEmail && path) {
+      const space = await db.space.findUniqueOrThrow({
+        where: { id: spaceId },
+        select: { name: true },
+      });
+      try {
+        await limit(`space-mail:${spaceId}`, 20, 3600);
+        await sendAppEmail({
+          to: email,
+          subject: `Invitation to ${space.name} on Utsava`,
+          text: `You were invited to join ${space.name} as ${role.name}.\n\nOpen this private invitation link:\n${appUrl()}${path}\n\nThe link expires in 7 days. If you did not expect this, ignore the message.`,
+          idempotencyKey: `space-invite-update-${hashToken(raw)}`,
+        });
+      } catch (mailError) {
+        revalidatePath(`/users?space=${spaceId}`);
+        revalidatePath(`/spaces/${spaceId}`);
+        revalidatePath(`/settings?space=${spaceId}`);
+        return {
+          path,
+          success:
+            mailError instanceof Error
+              ? `Invitation updated, but the email could not be sent. ${mailError.message}`
+              : "Invitation updated, but the email could not be sent.",
+        };
+      }
+    }
+    revalidatePath(`/users?space=${spaceId}`);
+    revalidatePath(`/spaces/${spaceId}`);
+    revalidatePath(`/settings?space=${spaceId}`);
+    return {
+      path,
+      success: sendEmail
+        ? "Invitation updated and emailed."
+        : newLink
+          ? "Invitation updated. A new private link was created."
+          : "Invitation updated.",
+    };
   } catch (e) {
     return error(e);
   }
@@ -271,6 +514,14 @@ export async function createEvent(_: Result, form: FormData): Promise<Result> {
     const spaceId = z.string().min(1).parse(form.get("spaceId"));
     const name = nameSchema.parse(form.get("name"));
     const templateKey = z.string().parse(form.get("templateKey"));
+    const date = isoDate.parse(String(form.get("date") || "").trim());
+    const location = z
+      .string()
+      .trim()
+      .min(1, "Add a location.")
+      .max(160)
+      .parse(form.get("location") || "");
+    if (!date) throw new Error("Choose a date for this celebration.");
     const createKey = `${user.id}:${z.uuid().parse(form.get("createKey"))}`;
     const access = await getMembershipAccess(spaceId, user.id);
     if (!access || !can(access.permissions, "events.write"))
@@ -281,7 +532,20 @@ export async function createEvent(_: Result, form: FormData): Promise<Result> {
         throw new Error("This request already belongs to another space.");
       id = prior.id;
     } else {
-      const plan = { ...newPlan(templateKey), status: "PLANNING" as const };
+      const base = {
+        ...newPlan(templateKey),
+        status: "PLANNING" as const,
+        date,
+        location,
+      };
+      const dueUpdates = dateChanges(base, date);
+      const plan = {
+        ...base,
+        tasks: base.tasks.map((task) => ({
+          ...task,
+          due: dueUpdates.find((change) => change.id === task.id)?.after ?? task.due,
+        })),
+      };
       const event = await db.event.upsert({
         where: { createKey },
         create: {
@@ -319,10 +583,7 @@ export async function saveEvent(input: unknown): Promise<Result> {
     const canVendors = can(access?.permissions, "vendors.manage");
     if (!access || (!canWrite && !canBudget && !canVendors))
       throw new Error("You do not have access to save this event.");
-    let planToSave =
-      plan.status === "DRAFT" && canWrite
-        ? { ...plan, status: "PLANNING" as const }
-        : plan;
+    let planToSave = plan;
     let eventName = name;
     if (!canWrite && (canBudget || canVendors)) {
       const current = await db.event.findFirst({ where: { id } });
@@ -453,22 +714,19 @@ export async function addSpaceMember(
     if (!access || !can(access.permissions, "users.manage"))
       throw new Error("You do not have access to add people.");
     const role = await parseInviteRole(spaceId, roleId, access);
-    if (sendEmail && !mailConfigured())
-      throw new Error("Email delivery is not configured yet.");
     const space = await db.space.findUniqueOrThrow({
       where: { id: spaceId },
       select: { name: true },
     });
     let member = await db.user.findUnique({ where: { email } });
-    let temporaryPassword: string | undefined;
+    const isNewUser = !member;
     if (!member) {
       const parsedName = nameSchema.parse(form.get("name"));
-      temporaryPassword = token().slice(0, 16);
       member = await db.user.create({
         data: {
           email,
           name: parsedName,
-          passwordHash: passwordHash(temporaryPassword),
+          passwordHash: passwordHash(token()),
         },
       });
     }
@@ -492,19 +750,48 @@ export async function addSpaceMember(
       }),
     ]);
     const loginUrl = `${appUrl()}/login`;
+    let path: string | undefined;
     let emailed = false;
-    if (sendEmail) {
+    if (isNewUser) {
+      const link = await issueAccountLink(member.id, "SET");
+      path = link.path;
+      if (mailConfigured()) {
+        try {
+          await limit(`space-mail:${spaceId}`, 20, 3600);
+          await sendAppEmail({
+            to: email,
+            subject: `Set your password for ${space.name} on Utsava`,
+            text: [
+              `You were added to ${space.name} as ${role.name}.`,
+              `Open this link to choose your password:\n${link.url}`,
+              "The link expires in 7 days. After you set a password you can sign in.",
+            ].join("\n\n"),
+            idempotencyKey: `space-set-password-${member.id}`,
+          });
+          emailed = true;
+        } catch (mailError) {
+          revalidatePath(`/users?space=${spaceId}`);
+          revalidatePath(`/spaces/${spaceId}`);
+          return {
+            path,
+            success:
+              mailError instanceof Error
+                ? `User added. The set-password email could not be sent. ${mailError.message}`
+                : "User added. The set-password email could not be sent. Share the link below.",
+          };
+        }
+      }
+    } else if (sendEmail) {
+      if (!mailConfigured())
+        throw new Error("Email delivery is not configured yet.");
       try {
         await limit(`space-mail:${spaceId}`, 20, 3600);
         await sendAppEmail({
           to: email,
           subject: `You were added to ${space.name} on Utsava`,
           text: [
-            `You now have access to the ${space.name} space on Utsava as ${role.name}.`,
-            `Sign in at ${loginUrl}`,
-            temporaryPassword
-              ? `A temporary password was created for you: ${temporaryPassword}\nChange it after you sign in.`
-              : "Use the password you already have for this email.",
+            `You now have access to ${space.name} as ${role.name}.`,
+            `Sign in at ${loginUrl} with the password you already use for this email.`,
           ].join("\n\n"),
           idempotencyKey: `space-add-${spaceId}-${member.id}`,
         });
@@ -517,17 +804,20 @@ export async function addSpaceMember(
             mailError instanceof Error
               ? `User added to this space, but the email could not be sent. ${mailError.message}`
               : "User added to this space, but the email could not be sent.",
-          password: temporaryPassword,
         };
       }
     }
     revalidatePath(`/users?space=${spaceId}`);
     revalidatePath(`/spaces/${spaceId}`);
     return {
-      success: emailed
-        ? "User added to this space and an email was sent."
-        : "User added to this space. No email was sent.",
-      password: temporaryPassword,
+      path,
+      success: isNewUser
+        ? emailed
+          ? "User added. They will set a password from the email we sent."
+          : "User added. Share the set-password link. Email delivery is not configured."
+        : emailed
+          ? "User added to this space and an email was sent."
+          : "User added to this space. No email was sent.",
     };
   } catch (e) {
     return error(e);
@@ -1301,7 +1591,7 @@ export async function saveMemberAccess(
       where: { spaceId_userId: { spaceId, userId } },
       include: {
         role: { include: { _count: { select: { members: true, invites: true } } } },
-        user: { select: { name: true } },
+        user: { select: { name: true, email: true } },
       },
     });
     if (!member) throw new Error("Member not found in this space.");
@@ -1384,10 +1674,62 @@ export async function saveMemberAccess(
       }
     }
 
+    const passwordRaw = String(form.get("password") || "");
+    const confirmRaw = String(form.get("confirmPassword") || "");
+    const emailPassword = form.get("emailPassword") === "1";
+    let passwordUpdated = false;
+    if (passwordRaw || confirmRaw || emailPassword) {
+      if (!canManageUsers)
+        throw new Error("You do not have access to change this password.");
+      if (member.role.systemKey === "OWNER" && !isOwnerAccess(access))
+        throw new Error("Only the owner can change the owner password.");
+      const password = z
+        .string()
+        .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters.`)
+        .max(128)
+        .parse(passwordRaw);
+      if (password !== confirmRaw) throw new Error("Passwords must match.");
+      if (emailPassword) {
+        if (!mailConfigured())
+          throw new Error("Email delivery is not configured yet.");
+        if (!member.user.email)
+          throw new Error("This person has no email to notify.");
+      }
+      await db.user.update({
+        where: { id: userId },
+        data: { passwordHash: passwordHash(password) },
+      });
+      const raw = (await cookies()).get("celebration_session")?.value;
+      const keep = raw && userId === user.id ? hashToken(raw) : "";
+      await db.session.deleteMany({
+        where: keep
+          ? { userId, NOT: { tokenHash: keep } }
+          : { userId },
+      });
+      if (emailPassword && member.user.email) {
+        await sendAppEmail({
+          to: member.user.email,
+          subject: "Your Utsava password was updated",
+          text: [
+            "An administrator set a new password for your Utsava account.",
+            `Sign in at ${appUrl()}/login`,
+            `New password: ${password}`,
+            "Change it after you sign in if you did not expect this.",
+          ].join("\n\n"),
+          idempotencyKey: `admin-password-${hashToken(`${userId}:${password}`)}`,
+        });
+      }
+      passwordUpdated = true;
+    }
+
     revalidatePath(`/users?space=${spaceId}`);
     revalidatePath(`/spaces/${spaceId}`);
     revalidatePath("/", "layout");
-    return { success: "Member access saved." };
+    return {
+      success: passwordUpdated
+        ? "Member access saved. Password updated."
+        : "Member access saved.",
+    };
   } catch (e) {
     return error(e);
   }

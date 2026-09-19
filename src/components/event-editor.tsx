@@ -1,24 +1,12 @@
 ﻿"use client";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  ArrowRight,
-  CalendarDays,
-  Coins,
-  ListChecks,
-  MandirIcon,
-  Pencil,
-  Plus,
-  Sparkles,
-  Trash2,
-  Users,
-} from "@/components/icons";
+import { Pencil, Plus, Trash2 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { saveEvent, reuseEvent, suggest } from "@/app/actions";
 import {
   Plan,
   applyTaskStatus,
   dateChanges,
-  formatMoney,
   modules,
   nextActions,
   syncTaskCompletion,
@@ -30,6 +18,7 @@ import {
   EventDetailsModal,
 } from "./event-detail-header";
 import { EventTabs } from "./event-tabs";
+import { OverviewTab } from "./overview-tab";
 import { PlanTab } from "./plan-tab";
 import { GuestsTab } from "./guests-tab";
 import { BudgetTab } from "./budget-tab";
@@ -161,16 +150,6 @@ export function EventEditor({
   const [proposedDate, setProposedDate] = useState<string | null>(null);
   const [reuseKey] = useState(uid);
   const router = useRouter();
-  const actions = nextActions(plan);
-  const done = plan.tasks.filter((t) => t.done).length;
-  const totals = plan.budget.reduce(
-    (a, b) => ({
-      planned: a.planned + b.planned,
-      committed: a.committed + b.committed,
-      paid: a.paid + b.paid,
-    }),
-    { planned: 0, committed: 0, paid: 0 },
-  );
   const tabs = [
     "Overview",
     "Plan",
@@ -229,17 +208,6 @@ export function EventEditor({
   >("idle");
   const latestRef = useRef({ plan, name, version });
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const promotedDraft = useRef(false);
-
-  useEffect(() => {
-    if (!editable || promotedDraft.current) return;
-    if (plan.status !== "DRAFT") return;
-    promotedDraft.current = true;
-    setPlan((p) =>
-      p.status === "DRAFT" ? { ...p, status: "PLANNING" } : p,
-    );
-    setDirty(true);
-  }, [editable, plan.status]);
 
   function askConfirm(opts: {
     title: string;
@@ -312,17 +280,12 @@ export function EventEditor({
       startTransition(async () => {
         setSaveStatus("saving");
         const current = latestRef.current;
-        const planToSave =
-          current.plan.status === "DRAFT"
-            ? { ...current.plan, status: "PLANNING" as const }
-            : current.plan;
-        if (current.plan.status === "DRAFT") setPlan(planToSave);
         try {
           const result = await saveEvent({
             id,
             name: current.name,
             version: current.version,
-            plan: planToSave,
+            plan: current.plan,
           });
           if (result.error) {
             setError(
@@ -760,213 +723,21 @@ export function EventEditor({
         </p>
       )}
       {tab === "Overview" && (
-        <>
-          <section className="panel overview-summary">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">EVENT SNAPSHOT</p>
-                <h2>Everything about this celebration</h2>
-                <p>
-                  A single place to scan the date, guests, budget, and what is
-                  still open.
-                </p>
-              </div>
-              {editable && (
-                <button
-                  type="button"
-                  className="secondary btn-compact"
-                  onClick={() => setTab("Settings")}
-                >
-                  Edit details
-                </button>
-              )}
-            </div>
-            <div className="overview-detail-grid">
-              <div className="overview-detail">
-                <span>Event name</span>
-                <strong>{name || NOT_SET}</strong>
-              </div>
-              <div className="overview-detail">
-                <span>Status</span>
-                <strong className="capitalize">
-                  {plan.status.toLowerCase()}
-                </strong>
-              </div>
-              <div className="overview-detail">
-                <span>Date</span>
-                <strong>{plan.date || "Date to be decided"}</strong>
-              </div>
-              <div className="overview-detail">
-                <span>Location</span>
-                <strong>{plan.location || "Location not set"}</strong>
-              </div>
-              <div className="overview-detail">
-                <span>Currency</span>
-                <strong>{plan.currency}</strong>
-              </div>
-              <div className="overview-detail">
-                <span>Modules on</span>
-                <strong>
-                  {plan.modules.length
-                    ? plan.modules
-                        .map((m) => m.charAt(0).toUpperCase() + m.slice(1))
-                        .join(", ")
-                    : "None"}
-                </strong>
-              </div>
-            </div>
-            {plan.notes.trim() ? (
-              <div className="overview-notes">
-                <span>Notes</span>
-                <p>{plan.notes}</p>
-              </div>
-            ) : null}
-          </section>
-
-          <section className="panel next-panel">
-            <MandirIcon size={26} className="accent-icon" />
-            <p className="eyebrow">YOUR NEXT LITTLE STEP</p>
-            <h2>{actions[0].title}</h2>
-            <p>{actions[0].reason}</p>
-            <button
-              className="primary"
-              onClick={() => setTab(actions[0].section)}
-            >
-              Take the next step <ArrowRight size={16} />
-            </button>
-          </section>
-          <div className="stats">
-            <button
-              type="button"
-              className="stat stat-link"
-              onClick={() => setTab("Plan")}
-            >
-              <span className="stat-head">
-                <ListChecks size={20} className="stat-icon" />
-                <strong>
-                  {done} / {plan.tasks.length}
-                </strong>
-              </span>
-              <span>Preparations complete</span>
-            </button>
-            <button
-              type="button"
-              className="stat stat-link"
-              onClick={() => setTab("Guests")}
-            >
-              <span className="stat-head">
-                <Users size={20} className="stat-icon" />
-                <strong>
-                  {guests
-                    .filter((g) => !g.revoked && g.response === "YES")
-                    .reduce((a, g) => a + g.attending, 0)}
-                </strong>
-              </span>
-              <span>
-                Guests attending · {guests.filter((g) => !g.revoked).length}{" "}
-                households
-              </span>
-            </button>
-            <button
-              type="button"
-              className="stat stat-link"
-              onClick={() => setTab("Budget")}
-            >
-              <span className="stat-head">
-                <Coins size={20} className="stat-icon" />
-                <strong>{formatMoney(totals.planned, plan.currency)}</strong>
-              </span>
-              <span>
-                Planned · Paid {formatMoney(totals.paid, plan.currency)}
-              </span>
-            </button>
-          </div>
-          <div className="stats overview-secondary-stats">
-            <button
-              type="button"
-              className="stat stat-link"
-              onClick={() => setTab("Vendors")}
-            >
-              <span className="stat-head">
-                <strong>{plan.services.length}</strong>
-              </span>
-              <span>
-                Services ·{" "}
-                {
-                  plan.services.filter((s) =>
-                    ["CONFIRMED", "DELIVERED", "PAID"].includes(s.status),
-                  ).length
-                }{" "}
-                confirmed+
-              </span>
-            </button>
-            <div className="stat">
-              <span className="stat-head">
-                <CalendarDays size={20} className="stat-icon" />
-                <strong>
-                  {plan.tasks.filter((t) => !t.done && t.due).length}
-                </strong>
-              </span>
-              <span>Scheduled open tasks</span>
-            </div>
-            <div className="stat">
-              <span className="stat-head">
-                <strong>
-                  {
-                    guests.filter((g) => !g.revoked && g.response === "PENDING")
-                      .length
-                  }
-                </strong>
-              </span>
-              <span>Pending RSVPs</span>
-            </div>
-          </div>
-          <section className="panel">
-            <p className="eyebrow">A LITTLE INSPIRATION</p>
-            <h2>When you&apos;re wondering what comes next.</h2>
-            <p>
-              Start with a prompt, make it your own, and review the suggestions.
-            </p>
-            <div className="prompt-buttons">
-              {actions.map((a) => (
-                <button key={a.title} onClick={() => setPrompt(a.prompt)}>
-                  {a.title}
-                </button>
-              ))}
-            </div>
-            <label>
-              Your question
-              <textarea
-                value={prompt}
-                maxLength={1000}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Help me break the next preparation into three small steps."
-              />
-            </label>
-            <button
-              className="secondary"
-              disabled={
-                !editable || pending || prompt.trim().length < 5 || dirty
-              }
-              onClick={() => run(() => suggest({ eventId: id, prompt }))}
-            >
-              <Sparkles size={16} />
-              {pending ? "Thinking..." : "Suggest my next steps"}
-            </button>
-            <small style={{ display: "block", marginTop: 12 }}>
-              Suggestions use your saved plan. Your question is sent to the AI
-              provider when configured; avoid including private details.{" "}
-              {dirty && "Wait for auto-save to finish."}
-            </small>
-            {suggestions.length > 0 && (
-              <ol className="suggestions">
-                {suggestions.map((s, i) => (
-                  <li key={i}>{s}</li>
-                ))}
-              </ol>
-            )}
-          </section>
-        </>
+        <OverviewTab
+          plan={plan}
+          guests={guests}
+          name={name}
+          editable={editable}
+          pending={pending}
+          dirty={dirty}
+          canViewBudget={canViewBudget}
+          prompt={prompt}
+          suggestions={suggestions}
+          onPromptChange={setPrompt}
+          onSuggest={() => run(() => suggest({ eventId: id, prompt }))}
+          onOpenTab={setTab}
+          onOpenDetails={() => setDetailsOpen(true)}
+        />
       )}
       {tab === "Plan" && (
         <PlanTab
@@ -1312,6 +1083,7 @@ export function EventEditor({
           eventId={id}
           name={name}
           plan={plan}
+          spaceId={spaceId}
           spaceName={spaceName}
           templateKey={templateKey}
           proposedDate={proposedDate}

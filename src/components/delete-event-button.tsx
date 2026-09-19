@@ -12,7 +12,7 @@ export function DeleteEventButton({
 }: {
   id: string;
   name: string;
-  variant?: "label" | "icon" | "row";
+  variant?: "label" | "icon" | "row" | "menu";
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -27,6 +27,21 @@ export function DeleteEventButton({
       else router.refresh();
     });
   };
+
+  if (variant === "menu") {
+    return (
+      <button
+        type="button"
+        role="menuitem"
+        className="event-more-menu-danger"
+        disabled={pending}
+        onClick={onDelete}
+      >
+        <Trash2 size={14} />
+        {pending ? "Removing..." : "Delete this plan"}
+      </button>
+    );
+  }
 
   if (variant === "row") {
     return (

@@ -4,7 +4,7 @@
 
 Browser → Next.js Node.js application → Prisma → Neon PostgreSQL.
 
-Separate integrations: Stripe for the space's software subscription; Resend for account mail; OmniRoute as an authenticated AI gateway. Use a Hostinger VPS or another suitable persistent host for OmniRoute. The application can run on Vercel OR Hostinger without moving the database. Do not introduce a second MySQL source of truth.
+Separate integrations: Stripe for the space's software subscription; SMTP (or Resend fallback) for account mail; OmniRoute as an authenticated AI gateway. Use a Hostinger VPS or another suitable persistent host for OmniRoute. The application can run on Vercel OR Hostinger without moving the database. Do not introduce a second MySQL source of truth.
 
 ## 1. Provision the new database
 
@@ -32,7 +32,7 @@ This integration purchases software subscriptions only. Event fees and vendor pa
 
 ## 5. Email and AI
 
-For account mail, configure a verified Resend sender and key. Provider acceptance is not delivered-to-inbox confirmation. Full reminder outbox and delivery callback handling remain a later release package.
+For account mail, set `SMTP_HOST`, `SMTP_PORT` (587 or 465), `SMTP_USER`, `SMTP_PASS`, and a verified `MAIL_FROM`. Use `SMTP_SECURE=true` for implicit TLS on port 465. Resend (`RESEND_API_KEY`) remains an optional fallback when SMTP is not set. Provider acceptance is not delivered-to-inbox confirmation. Full reminder outbox and delivery callback handling remain a later release package.
 
 For OmniRoute, deploy and configure the upstream MIT-licensed gateway following its own documentation. Configure its providers legitimately; supply this app an authenticated HTTPS `/v1` base URL, API key and model. Do not expose a gateway admin dashboard or provider tokens to browsers. No gateway process, provider credentials, or remote model has been configured by this build. The adapter is implemented and falls back to saved-plan rules when unavailable.
 

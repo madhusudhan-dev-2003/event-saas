@@ -7,10 +7,10 @@ import { Billing } from "@/components/billing";
 import {
   DeleteSpaceForm,
   LeaveSpaceForm,
-  RevokeInviteForm,
   SpaceDetailsForm,
   TransferOwnershipForm,
 } from "@/components/space-settings-forms";
+import { PendingInviteList } from "@/components/users-forms";
 import { ACCESS_SECTIONS, can, parsePermissions } from "@/lib/permissions";
 import { getShellContext } from "@/lib/space-context";
 import { seedSpaceRoles } from "@/lib/space-roles";
@@ -92,24 +92,15 @@ export default async function SpacePage({
     .map((r) => ({ id: r.id, name: r.name }));
 
   return (
-    <Shell user={user} spaces={spaces} spaceId={id} active="settings">
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={id}
+      active="settings"
+      title={m.space.name}
+      description={`${m.space.kind.toLowerCase()} space · Created ${created} · Owner ${owner?.user.name || "unassigned"} · Your role is ${m.role.name}.`}
+    >
       <div className="space-settings">
-        <header className="page-header-bar">
-          <div>
-            <p className="eyebrow">SPACE SETTINGS</p>
-            <h1>{m.space.name}</h1>
-            <p>
-              {m.space.kind.toLowerCase()} space · Created {created} · Owner{" "}
-              {owner?.user.name || "unassigned"} · Your role is {m.role.name}.
-            </p>
-          </div>
-          {manageMembers && (
-            <Link className="btn-add" href={`/users?space=${id}`}>
-              Manage users
-            </Link>
-          )}
-        </header>
-
         <div className="celeb-kpi-grid users-kpi-grid">
           <div className="celeb-kpi">
             <strong>{m.space._count.members}</strong>
@@ -132,6 +123,13 @@ export default async function SpacePage({
             <b>Billing</b>
           </div>
         </div>
+        {manageMembers ? (
+          <div className="page-actions">
+            <Link className="secondary" href={`/users?space=${id}`}>
+              Manage users
+            </Link>
+          </div>
+        ) : null}
 
         <div className="space-settings-grid">
           <section id="space-details" className="panel">
@@ -235,24 +233,17 @@ export default async function SpacePage({
               <h2>Invites</h2>
               <p>Create a private link. The app does not send email.</p>
               <InviteForm spaceId={id} roles={inviteRoles} />
-              {m.space.invites.length ? (
-                <div className="invite-manage-list">
-                  {m.space.invites.map((invite) => (
-                    <div className="invite-manage-row" key={invite.id}>
-                      <span>
-                        <strong>{invite.email}</strong>
-                        <small>
-                          {invite.role.name} · expires{" "}
-                          {invite.expiresAt.toLocaleDateString("en-GB")}
-                        </small>
-                      </span>
-                      <RevokeInviteForm spaceId={id} inviteId={invite.id} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>No pending invitations.</p>
-              )}
+              <PendingInviteList
+                spaceId={id}
+                invites={m.space.invites.map((invite) => ({
+                  id: invite.id,
+                  email: invite.email,
+                  roleId: invite.roleId,
+                  roleName: invite.role.name,
+                  expiresAt: invite.expiresAt.toISOString(),
+                }))}
+                roles={inviteRoles}
+              />
             </section>
           )}
 

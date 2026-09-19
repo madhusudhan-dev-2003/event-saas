@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Shell } from "@/components/shell";
 import { UsersHub } from "@/components/users-hub";
 import { requireSpaceContext } from "@/lib/space-context";
@@ -46,7 +47,15 @@ export default async function UsersPage({
   ]);
 
   return (
-    <Shell user={user} spaces={spaces} spaceId={space.id} active="users">
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={space.id}
+      active="users"
+      title="Users"
+      description="People, roles, and module access for this space only."
+    >
+      <Suspense>
       <UsersHub
         spaceId={space.id}
         manage={manage}
@@ -76,7 +85,9 @@ export default async function UsersPage({
         invites={invites.map((i) => ({
           id: i.id,
           email: i.email,
+          roleId: i.roleId,
           roleName: i.role.name,
+          expiresAt: i.expiresAt.toISOString(),
         }))}
         assignableRoles={roles
           .filter((r) => r.systemKey !== "OWNER")
@@ -89,6 +100,7 @@ export default async function UsersPage({
             permissions: parsePermissions(r.permissions),
           }))}
       />
+      </Suspense>
       {!manage && (
         <p className="empty-inline" style={{ marginTop: 16 }}>
           Ask a space admin if you need to invite people or change roles.{" "}

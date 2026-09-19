@@ -1,6 +1,5 @@
 "use client";
 import { useActionState, useEffect, useState } from "react";
-import Link from "next/link";
 import {
   authenticate,
   createSpace,
@@ -11,8 +10,10 @@ import {
   createGuestLink,
   rsvp,
 } from "@/app/actions";
+import { requestReset } from "@/app/account-actions";
 import { occasions } from "@/lib/planning";
-import { Copy, ExternalLink } from "@/components/icons";
+import { celebrationCover } from "@/lib/celebration-board";
+import { CalendarDays, Copy, ExternalLink, MapPin } from "@/components/icons";
 type State = { error?: string; success?: string; path?: string };
 type Action = (state: State, form: FormData) => Promise<State>;
 export function ActionForm({
@@ -22,6 +23,7 @@ export function ActionForm({
   className = "",
   buttonClass = "primary",
   confirm,
+  hideButton = false,
 }: {
   action: Action;
   children: React.ReactNode;
@@ -29,6 +31,7 @@ export function ActionForm({
   className?: string;
   buttonClass?: string;
   confirm?: string;
+  hideButton?: boolean;
 }) {
   const [state, submit, pending] = useActionState(action, {});
   return (
@@ -41,9 +44,11 @@ export function ActionForm({
     >
       <fieldset disabled={pending}>
         {children}
-        <button className={buttonClass} disabled={pending}>
-          {pending ? "Please wait" : label}
-        </button>
+        {!hideButton && (
+          <button className={buttonClass} disabled={pending}>
+            {pending ? "Please wait" : label}
+          </button>
+        )}
       </fieldset>
       {state.error && (
         <p role="alert" className="error">
@@ -77,13 +82,36 @@ export function ActionForm({
   );
 }
 export function AuthForm({ invite = "" }: { invite?: string }) {
-  const [register, setRegister] = useState(false);
+  const [view, setView] = useState<"login" | "register" | "reset">("login");
+  if (view === "reset") {
+    return (
+      <>
+        <p>Enter your registered email. We will send a password reset link.</p>
+        <ActionForm action={requestReset} label="Send reset email" key="reset">
+          <label>
+            Email
+            <input
+              type="email"
+              name="email"
+              required
+              maxLength={254}
+              autoComplete="email"
+            />
+          </label>
+        </ActionForm>
+        <button className="text-button" onClick={() => setView("login")}>
+          Back to sign in
+        </button>
+      </>
+    );
+  }
+  const register = view === "register";
   return (
     <>
       <ActionForm
         action={authenticate}
         label={register ? "Create my account" : "Sign in"}
-        key={String(register)}
+        key={view}
       >
         <input
           type="hidden"
@@ -113,23 +141,26 @@ export function AuthForm({ invite = "" }: { invite?: string }) {
             type="password"
             name="password"
             required
-            minLength={12}
+            minLength={6}
             maxLength={128}
             autoComplete={register ? "new-password" : "current-password"}
           />
-          <small>At least 12 characters.</small>
+          <small>At least 6 characters.</small>
         </label>
       </ActionForm>
-      <button className="text-button" onClick={() => setRegister(!register)}>
+      <button
+        className="text-button"
+        onClick={() => setView(register ? "login" : "register")}
+      >
         {register
           ? "Already have an account? Sign in"
           : "New here? Create an account"}
       </button>
       {!register && (
         <p>
-          <Link className="text-button" href="/account/reset">
-            Forgot your password?
-          </Link>
+          <button className="text-button" onClick={() => setView("reset")}>
+            Forgot your password? Reset it
+          </button>
         </p>
       )}
     </>
@@ -162,59 +193,95 @@ export function EventForm({
   initialSpace?: string;
   initialTemplate?: string;
 }) {
-  const [template, setTemplate] = useState(initialTemplate);
+  const known = occasions.some((item) => item.key === initialTemplate)
+    ? initialTemplate
+    : "birthday";
+  const [template, setTemplate] = useState(known);
   const [requestKey] = useState(() => crypto.randomUUID());
+  const selected = occasions.find((item) => item.key === template) || occasions[0];
   return (
     <ActionForm
       action={createEvent}
-      label="Create my celebration"
+      label="Create celebration"
       className="create-form"
+      hideButton
     >
       <input type="hidden" name="createKey" value={requestKey} />
-      <label>
-        Where does this celebration belong?
-        <select name="spaceId" defaultValue={initialSpace || spaces[0]?.id}>
-          {spaces.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <small>Only people invited to this space can see the plan.</small>
-      </label>
-      <h2>What are we celebrating?</h2>
-      <div className="occasion-grid">
-        {occasions.map((o) => (
-          <label
-            className={`occasion-choice ${o.color} ${template === o.key ? "selected" : ""}`}
-            key={o.key}
-          >
-            <input
-              type="radio"
-              name="templateKey"
-              value={o.key}
-              checked={template === o.key}
-              onChange={() => setTemplate(o.key)}
-            />
-            <span className="occasion-glyph">{o.glyph}</span>
-            <strong>{o.name}</strong>
-            <small>{o.description}</small>
+      <div className="create-event-body">
+        <div>
+          <div className="occasion-grid">
+            {occasions.map((o) => (
+              <label
+                className={`occasion-choice ${o.color} ${template === o.key ? "selected" : ""}`}
+                key={o.key}
+              >
+                <input
+                  type="radio"
+                  name="templateKey"
+                  value={o.key}
+                  checked={template === o.key}
+                  onChange={() => setTemplate(o.key)}
+                />
+                <img src={celebrationCover(o.key)} alt="" />
+                <strong>{o.name}</strong>
+                <small>{o.description}</small>
+              </label>
+            ))}
+          </div>
+        </div>
+        <aside className="create-event-aside">
+          <img
+            className="create-event-cover"
+            src={celebrationCover(selected.key)}
+            alt=""
+          />
+          <p className="create-event-aside-kicker">{selected.name}</p>
+          <label>
+            Space
+            <select name="spaceId" defaultValue={initialSpace || spaces[0]?.id}>
+              {spaces.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <small>Only people in this space can see the plan.</small>
           </label>
-        ))}
+          <label>
+            Celebration name
+            <input
+              name="name"
+              required
+              maxLength={120}
+              placeholder="Anurag’s birthday"
+            />
+          </label>
+          <div className="create-event-fields">
+            <label>
+              Date
+              <span className="create-event-icon-field">
+                <CalendarDays size={15} />
+                <input name="date" type="date" required />
+              </span>
+            </label>
+            <label>
+              Location
+              <span className="create-event-icon-field">
+                <MapPin size={15} />
+                <input
+                  name="location"
+                  required
+                  maxLength={160}
+                  placeholder="Pune"
+                />
+              </span>
+            </label>
+          </div>
+          <button className="primary" type="submit">
+            Create celebration
+          </button>
+        </aside>
       </div>
-      <label>
-        Give it a name
-        <input
-          name="name"
-          required
-          maxLength={120}
-          placeholder="A celebration to remember"
-        />
-        <small>
-          That is all you need to start. Date, venue and guest list can come
-          later.
-        </small>
-      </label>
     </ActionForm>
   );
 }
@@ -242,6 +309,10 @@ export function InviteForm({
             </option>
           ))}
         </select>
+      </label>
+      <label className="check-row">
+        <input type="checkbox" name="sendEmail" value="1" />
+        <span>Email them the invitation link</span>
       </label>
     </ActionForm>
   );

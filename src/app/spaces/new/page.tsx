@@ -12,9 +12,14 @@ export default async function NewSpace({
   const user = await requireUser();
   const { spaces, spaceId } = await getShellContext(query.space);
   return (
-    <Shell user={user} spaces={spaces} spaceId={spaceId} active="settings">
-      <p className="eyebrow">KEEP YOUR WORLDS CONNECTED, YOUR PLANS PRIVATE</p>
-      <h1>A new space for your people.</h1>
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={spaceId}
+      active="settings"
+      title="A new space for your people"
+      description="Keep your worlds connected and your plans private."
+    >
       <div className="panel narrow">
         <SpaceForm />
       </div>

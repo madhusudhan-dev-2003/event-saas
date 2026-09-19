@@ -6,15 +6,17 @@ import {
   ClipboardList,
   Pencil,
   Plus,
-  Search,
   Users,
 } from "@/components/icons";
+import { usePageSearch } from "@/components/topbar-search";
 import {
   CreateRoleForm,
   DeleteRoleForm,
   EditMemberForm,
   EditRoleForm,
   InviteUserForm,
+  PendingInviteList,
+  type PendingInvite,
 } from "@/components/users-forms";
 import { RemoveMember } from "@/components/forms";
 import { Modal } from "@/components/modals";
@@ -40,7 +42,7 @@ type Member = {
   isYou: boolean;
 };
 
-type Invite = { id: string; email: string; roleName: string };
+type Invite = PendingInvite;
 
 function initials(name: string) {
   return name
@@ -77,7 +79,7 @@ export function UsersHub({
   assignableRoles: Role[];
 }) {
   const [roleFilter, setRoleFilter] = useState("all");
-  const [query, setQuery] = useState("");
+  const query = usePageSearch();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [editMember, setEditMember] = useState<Member | null>(null);
@@ -114,31 +116,6 @@ export function UsersHub({
 
   return (
     <div className="users-hub">
-      <header className="page-header-bar">
-        <div>
-          <h1>Users</h1>
-          <p>People, roles, and module access for this space only.</p>
-        </div>
-        {manage && (
-          <div className="users-hero-actions">
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setManageRolesOpen(true)}
-            >
-              Manage roles
-            </button>
-            <button
-              type="button"
-              className="btn-add"
-              onClick={() => setInviteOpen(true)}
-            >
-              <Plus size={16} /> Add user
-            </button>
-          </div>
-        )}
-      </header>
-
       <div className="celeb-kpi-grid users-kpi-grid">
         <div className="celeb-kpi">
           <span className="celeb-kpi-icon is-rose">
@@ -170,6 +147,25 @@ export function UsersHub({
         </div>
       </div>
 
+      {manage ? (
+        <div className="page-actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setManageRolesOpen(true)}
+          >
+            Manage roles
+          </button>
+          <button
+            type="button"
+            className="btn-add"
+            onClick={() => setInviteOpen(true)}
+          >
+            <Plus size={16} /> Add user
+          </button>
+        </div>
+      ) : null}
+
       <div className="users-toolbar">
         <div className="role-tabs">
           <button
@@ -191,16 +187,6 @@ export function UsersHub({
           ))}
         </div>
         <div className="users-toolbar-right">
-          <div className="search-box users-search">
-            <Search size={15} />
-            <input
-              type="search"
-              placeholder="Search users..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="Search users"
-            />
-          </div>
           {manage && (
             <button
               type="button"
@@ -277,17 +263,20 @@ export function UsersHub({
         )}
       </section>
 
-      {!!invites.length && manage && (
+      {manage && (
         <section className="panel">
           <h2>Pending invites</h2>
-          <div className="invite-chips">
-            {invites.map((invite) => (
-              <div key={invite.id} className="invite-chip">
-                <strong>{invite.email}</strong>
-                <span>{invite.roleName}</span>
-              </div>
-            ))}
-          </div>
+          <p>Change the email or role, extend the expiry, or create a new link.</p>
+          <PendingInviteList
+            spaceId={spaceId}
+            invites={invites.filter(
+              (invite) =>
+                !query ||
+                invite.email.toLowerCase().includes(query) ||
+                invite.roleName.toLowerCase().includes(query),
+            )}
+            roles={inviteRoles}
+          />
         </section>
       )}
 
@@ -322,6 +311,9 @@ export function UsersHub({
               manage &&
               editMember.systemKey !== "OWNER" &&
               (editMember.systemKey !== "ADMIN" || isOwner)
+            }
+            canSetPassword={
+              manage && (isOwner || editMember.systemKey !== "OWNER")
             }
           />
         )}

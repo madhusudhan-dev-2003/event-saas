@@ -10,8 +10,6 @@ import {
   ListChecks,
   MapPin,
   MoreHorizontal,
-  Plus,
-  Search,
   Sparkles,
   Store,
   Users,
@@ -81,9 +79,13 @@ function CelebrationItem({
     </details>
   );
 
+  const openHref = `/events/${event.id}`;
+  const openLabel = `Open ${event.name}`;
+
   if (listView) {
     return (
       <article className="celeb-list-row">
+        <Link className="celeb-card-hit" href={openHref} aria-label={openLabel} />
         <div className="celeb-list-thumb">
           <img src={cover} alt="" />
         </div>
@@ -120,10 +122,10 @@ function CelebrationItem({
           </div>
           <div className="celeb-list-track">
             <div className={`celeb-progress is-${progress.tone}`}>
-              <span>{progress.label}</span>
               <b>
                 <i style={{ width: `${progress.pct}%` }} />
               </b>
+              <span>{progress.label}</span>
             </div>
             <div className="celeb-card-stats">
               <span>
@@ -138,10 +140,10 @@ function CelebrationItem({
           </div>
         </div>
         <div className="celeb-list-actions">
-          <Link className="celeb-action-view" href={`/events/${event.id}`}>
+          <span className="celeb-action-view">
             <Eye size={15} />
             View
-          </Link>
+          </span>
           {menu}
         </div>
       </article>
@@ -150,31 +152,34 @@ function CelebrationItem({
 
   return (
     <article className="celeb-card">
+      <Link className="celeb-card-hit" href={openHref} aria-label={openLabel} />
       <div className="celeb-card-cover">
         <img src={cover} alt="" />
-        {status}
-      </div>
-      <div className="celeb-card-body">
-        <small className="celeb-meta">
+        <small className="celeb-cover-occ">
           <span className={`celeb-occ celeb-occ-${occasion?.color || "ivory"}`}>
             {occasion?.glyph || "✳"}
           </span>
           {occasion?.name || event.templateKey}
         </small>
+        {status}
+      </div>
+      <div className="celeb-card-body">
         <h3>{event.name}</h3>
-        <p>
-          <CalendarDays size={14} />
-          {dateLabel}
-        </p>
-        <p>
-          <MapPin size={14} />
-          {location}
-        </p>
+        <div className="celeb-card-when">
+          <p>
+            <CalendarDays size={14} />
+            {dateLabel}
+          </p>
+          <p>
+            <MapPin size={14} />
+            {location}
+          </p>
+        </div>
         <div className={`celeb-progress is-${progress.tone}`}>
-          <span>{progress.label}</span>
           <b>
             <i style={{ width: `${progress.pct}%` }} />
           </b>
+          <span>{progress.label}</span>
         </div>
         <div className="celeb-card-stats">
           <span>
@@ -188,10 +193,10 @@ function CelebrationItem({
         </div>
       </div>
       <div className="celeb-card-actions">
-        <Link className="celeb-action-view" href={`/events/${event.id}`}>
+        <span className="celeb-action-view">
           <Eye size={15} />
           View
-        </Link>
+        </span>
         {menu}
       </div>
     </article>
@@ -241,9 +246,10 @@ export default async function CelebrationsPage({
         spaces={spaces}
         spaceId={space.id}
         active="celebrations"
+        title="Celebrations"
+        description="You do not have access to view celebrations in this space."
       >
-        <h1>Celebrations</h1>
-        <p>You do not have access to view celebrations in this space.</p>
+        <p>Ask an administrator if you need this list.</p>
       </Shell>
     );
   }
@@ -285,36 +291,14 @@ export default async function CelebrationsPage({
   const listView = query.view === "list";
 
   return (
-    <Shell user={user} spaces={spaces} spaceId={space.id} active="celebrations">
-      <header className="celeb-hero">
-        <div>
-          <h1>
-            Celebrations <span className="count">{kpi.all}</span>
-          </h1>
-          <p>
-            Plan, manage and cherish all your special moments. From intimate
-            gatherings to grand celebrations, keep everything organized in one
-            place.
-          </p>
-        </div>
-        <div className="celeb-hero-aside">
-          <div className="celeb-hero-banner" aria-hidden="true">
-            <img src="/covers/hero.png" alt="" />
-            <em>Every celebration brings people closer</em>
-          </div>
-          <div className="celeb-hero-actions">
-            <Link className="secondary" href="/templates">
-              <Sparkles size={16} /> Create from template
-            </Link>
-            {canWrite && (
-              <Link className="btn-add" href={`/new?space=${space.id}`}>
-                <Plus size={16} /> New celebration
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
-
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={space.id}
+      active="celebrations"
+      title="Celebrations"
+      description="Plan and keep every gathering for this space in one place."
+    >
       <div className="celeb-kpi-grid">
         <Link
           href={hrefFor(space.id, query, { status: "", upcoming: "", dated: "" })}
@@ -392,6 +376,12 @@ export default async function CelebrationsPage({
         </Link>
       </div>
 
+      <div className="page-actions">
+        <Link className="secondary" href={`/templates?space=${space.id}`}>
+          <Sparkles size={16} /> Create from template
+        </Link>
+      </div>
+
       {upcoming && (
         <section className="celeb-next">
           <div>
@@ -444,15 +434,7 @@ export default async function CelebrationsPage({
         {query.upcoming ? (
           <input type="hidden" name="upcoming" value={query.upcoming} />
         ) : null}
-        <label className="celeb-search">
-          <Search size={16} />
-          <input
-            name="q"
-            placeholder="Search celebrations..."
-            defaultValue={query.q}
-            aria-label="Search celebrations"
-          />
-        </label>
+        {query.q ? <input type="hidden" name="q" value={query.q} /> : null}
         <select name="status" defaultValue={query.status || ""} aria-label="Status">
           <option value="">All statuses</option>
           <option value="DRAFT">Drafts</option>
@@ -526,13 +508,8 @@ export default async function CelebrationsPage({
           <p>
             {query.q || query.status || query.occasion || query.dated
               ? "Try clearing filters or choose all celebrations."
-              : "Create an event for this space only."}
+              : "Use New event in the header to create one for this space."}
           </p>
-          {canWrite && (
-            <Link className="btn-add" href={`/new?space=${space.id}`}>
-              <Plus size={17} /> New celebration
-            </Link>
-          )}
         </div>
       )}
     </Shell>

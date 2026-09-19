@@ -42,7 +42,7 @@ describe("celebration board helpers", () => {
     expect(celebrationCover("birthday", "https://cdn.example/x.jpg")).toBe(
       "https://cdn.example/x.jpg",
     );
-    expect(celebrationCover("birthday")).toBe("/covers/birthday.png");
+    expect(celebrationCover("birthday")).toBe("/covers/birthday.png?v=3");
   });
 
   it("summarizes task progress from real task rows", () => {

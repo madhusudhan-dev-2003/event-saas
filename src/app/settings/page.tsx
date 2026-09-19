@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Shell } from "@/components/shell";
@@ -6,11 +7,13 @@ import { InviteForm } from "@/components/forms";
 import {
   DeleteSpaceForm,
   LeaveSpaceForm,
-  RevokeInviteForm,
   SpaceDetailsForm,
   TransferOwnershipForm,
 } from "@/components/space-settings-forms";
 import { SettingsAccess } from "@/components/settings-access";
+import { PendingInviteList } from "@/components/users-forms";
+import { BrandingForm } from "@/components/branding-form";
+import { getSpaceBrandMeta } from "@/lib/brand";
 import { can, parsePermissions } from "@/lib/permissions";
 import { requireSpaceContext } from "@/lib/space-context";
 import { mailConfigured } from "@/lib/mail";
@@ -110,36 +113,18 @@ export default async function SettingsPage({
     permissions: parsePermissions(member.role.permissions),
     isYou: member.userId === user.id,
   }));
+  const brand = await getSpaceBrandMeta(space.id);
 
   return (
-    <Shell user={user} spaces={spaces} spaceId={space.id} active="settings">
+    <Shell
+      user={user}
+      spaces={spaces}
+      spaceId={space.id}
+      active="settings"
+      title="Settings"
+      description={`${space.name} · ${space.kind.toLowerCase()} space · Your role is ${membership.role.name}${owner ? ` · Owner ${owner.user.name}` : ""}.`}
+    >
       <div className="admin-settings space-settings">
-        <header className="page-header-bar">
-          <div>
-            <h1>Settings</h1>
-            <p>
-              {space.name} · {space.kind.toLowerCase()} space · Your role is{" "}
-              {membership.role.name}
-              {owner ? ` · Owner ${owner.user.name}` : ""}.
-            </p>
-          </div>
-          {manageMembers ? (
-            <Link className="btn-add" href={`/users${spaceParam}`}>
-              Open users
-            </Link>
-          ) : null}
-        </header>
-
-        <nav className="settings-jump" aria-label="Settings sections">
-          <a href="#settings-workspace">Workspace</a>
-          <a href="#settings-software">Software</a>
-          <a href="#settings-access">Access</a>
-          <a href="#settings-people">People</a>
-          {manageUsers ? <a href="#settings-invites">Invites</a> : null}
-          {manageBilling ? <a href="#space-billing">Billing</a> : null}
-          <a href="#settings-account">Your account</a>
-        </nav>
-
         <div className="celeb-kpi-grid users-kpi-grid">
           <div className="celeb-kpi">
             <span className="celeb-kpi-icon is-rose">
@@ -171,6 +156,24 @@ export default async function SettingsPage({
           </div>
         </div>
 
+        <div className="settings-toolbar">
+          <nav className="settings-jump" aria-label="Settings sections">
+            <a href="#settings-workspace">Workspace</a>
+            <a href="#settings-branding">Branding</a>
+            <a href="#settings-software">Software</a>
+            <a href="#settings-access">Access</a>
+            <a href="#settings-people">People</a>
+            {manageUsers ? <a href="#settings-invites">Invites</a> : null}
+            {manageBilling ? <a href="#space-billing">Billing</a> : null}
+            <a href="#settings-account">Your account</a>
+          </nav>
+          {manageMembers ? (
+            <Link className="secondary" href={`/users${spaceParam}`}>
+              Open users
+            </Link>
+          ) : null}
+        </div>
+
         <div className="space-settings-grid">
           <section id="settings-workspace" className="panel">
             <h2>Workspace</h2>
@@ -191,6 +194,23 @@ export default async function SettingsPage({
             )}
           </section>
 
+          <section id="settings-branding" className="panel">
+            <h2>Branding</h2>
+            {manageSettings ? (
+              <BrandingForm
+                spaceId={space.id}
+                hasLogo={Boolean(brand?.hasLogo)}
+                hasFavicon={Boolean(brand?.hasFavicon)}
+                rev={brand?.rev || 0}
+              />
+            ) : (
+              <p>
+                An administrator can upload a sidebar logo and a favicon for
+                this space.
+              </p>
+            )}
+          </section>
+
           <section id="settings-software" className="panel">
             <h2>Software status</h2>
             <p>
@@ -206,8 +226,8 @@ export default async function SettingsPage({
                   <strong>Email delivery</strong>
                   <small>
                     {mailConfigured()
-                      ? "Invitation and account mail can send."
-                      : "Links are created; you share them yourself."}
+                      ? "Invitations, verification, and password reset can send."
+                      : "SMTP is not configured yet. Links are created; you share them yourself."}
                   </small>
                 </div>
               </li>
@@ -249,66 +269,6 @@ export default async function SettingsPage({
             ) : null}
           </section>
 
-          <SettingsAccess
-              spaceId={space.id}
-              isOwner={isOwner}
-              manage={manageMembers}
-              members={mappedMembers}
-              roles={mappedRoles}
-              assignableRoles={mappedRoles.filter(
-                (role) => role.systemKey !== "OWNER",
-              )}
-            />
-
-          {manageUsers ? (
-            <section id="settings-invites" className="panel space-settings-span">
-              <h2>Invites</h2>
-              <p>
-                Create a private invitation. Email is optional from Users if
-                delivery is configured.
-              </p>
-              <div className="settings-invite-grid">
-                <InviteForm spaceId={space.id} roles={inviteRoles} />
-                <div className="settings-invite-pending">
-                  <h3>Pending</h3>
-                  {invites.length ? (
-                    <div className="invite-manage-list">
-                      {invites.map((invite) => (
-                        <div className="invite-manage-row" key={invite.id}>
-                          <span>
-                            <strong>{invite.email}</strong>
-                            <small>
-                              {invite.role.name} · expires{" "}
-                              {invite.expiresAt.toLocaleDateString("en-GB")}
-                            </small>
-                          </span>
-                          <RevokeInviteForm
-                            spaceId={space.id}
-                            inviteId={invite.id}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-inline">No pending invitations.</p>
-                  )}
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {manageBilling ? (
-            <div id="space-billing" className="space-settings-span">
-              <Billing
-                spaceId={space.id}
-                configured={stripeReady}
-                hasCustomer={!!subscription?.customerId}
-                status={subscription?.status || "INACTIVE"}
-                compact
-              />
-            </div>
-          ) : null}
-
           <section id="settings-account" className="panel">
             <h2>Your account</h2>
             <p>Profile, password, sessions, and email verification.</p>
@@ -320,6 +280,58 @@ export default async function SettingsPage({
               <Link href={`/help${spaceParam}`}>Planning guide</Link>
             </div>
           </section>
+
+          <Suspense>
+            <SettingsAccess
+              spaceId={space.id}
+              isOwner={isOwner}
+              manage={manageMembers}
+              members={mappedMembers}
+              roles={mappedRoles}
+              assignableRoles={mappedRoles.filter(
+                (role) => role.systemKey !== "OWNER",
+              )}
+            />
+          </Suspense>
+
+          {manageUsers ? (
+            <section id="settings-invites" className="panel">
+              <h2>Invites</h2>
+              <p>
+                Create a private invitation. Email is optional from Users if
+                delivery is configured.
+              </p>
+              <div className="settings-invite-grid">
+                <InviteForm spaceId={space.id} roles={inviteRoles} />
+                <div className="settings-invite-pending">
+                  <h3>Pending</h3>
+                  <PendingInviteList
+                    spaceId={space.id}
+                    invites={invites.map((invite) => ({
+                      id: invite.id,
+                      email: invite.email,
+                      roleId: invite.roleId,
+                      roleName: invite.role.name,
+                      expiresAt: invite.expiresAt.toISOString(),
+                    }))}
+                    roles={inviteRoles}
+                  />
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {manageBilling ? (
+            <div id="space-billing">
+              <Billing
+                spaceId={space.id}
+                configured={stripeReady}
+                hasCustomer={!!subscription?.customerId}
+                status={subscription?.status || "INACTIVE"}
+                compact
+              />
+            </div>
+          ) : null}
 
           {isOwner ? (
             <section id="space-ownership" className="panel">
@@ -347,7 +359,7 @@ export default async function SettingsPage({
           )}
 
           {isOwner ? (
-            <section className="panel account-danger space-settings-span">
+            <section className="panel account-danger">
               <h2>Delete space</h2>
               <p>
                 This removes the space, memberships, and celebrations. Personal

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { ChevronDown, Plus } from "@/components/icons";
 
 function hrefForSpace(pathname: string, spaceId: string) {
@@ -29,6 +30,15 @@ export function SpaceSwitcher({
 }) {
   const pathname = usePathname();
   const current = spaces.find((space) => space.id === spaceId) || spaces[0];
+  const menu = useRef<HTMLDetailsElement>(null);
+
+  function closeMenu() {
+    menu.current?.removeAttribute("open");
+  }
+
+  useEffect(() => {
+    menu.current?.removeAttribute("open");
+  }, [spaceId, pathname]);
 
   return (
     <div className="space-switcher">
@@ -39,7 +49,7 @@ export function SpaceSwitcher({
         </Link>
       </div>
       {current ? (
-        <details className="space-switch">
+        <details className="space-switch" ref={menu}>
           <summary>
             <span className="space-avatar">
               {current.name.charAt(0).toUpperCase()}
@@ -56,6 +66,7 @@ export function SpaceSwitcher({
                 key={space.id}
                 href={hrefForSpace(pathname, space.id)}
                 className={space.id === current.id ? "active-space" : ""}
+                onClick={closeMenu}
               >
                 <span className="space-avatar">
                   {space.name.charAt(0).toUpperCase()}

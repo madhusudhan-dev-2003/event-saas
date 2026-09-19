@@ -26,10 +26,9 @@ export default async function New({
       spaces={allSpaces}
       spaceId={spaceId}
       active="celebrations"
+      title="Create a new event"
+      description="Pick an occasion, then set the name, date, and place."
     >
-      <p className="eyebrow">SOMETHING TO LOOK FORWARD TO</p>
-      <h1>Create a new event</h1>
-      <p>Events stay inside the space you choose.</p>
       {spaces.length ? (
         <EventForm
           spaces={spaces}

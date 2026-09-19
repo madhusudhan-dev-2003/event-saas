@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   CalendarDays,
-  CircleCheck,
   ClipboardList,
   Clock,
   CreditCard,
@@ -299,92 +298,92 @@ export default async function CelebrationsPage({
       title="Celebrations"
       description="Plan and keep every gathering for this space in one place."
     >
-      <div className="celeb-kpi-grid">
-        <Link
-          href={hrefFor(space.id, query, { status: "", upcoming: "", dated: "" })}
-          className={`celeb-kpi${ !query.status && query.upcoming !== "1" ? " is-active" : ""}`}
-        >
-          <span className="celeb-kpi-icon is-rose">
-            <CalendarDays size={18} />
-          </span>
-          <strong>{kpi.all}</strong>
-          <b>Total Celebrations</b>
-          <small className={kpi.createdThisMonth ? "is-up" : ""}>
-            {kpiDelta(kpi.createdThisMonth)}
-          </small>
-        </Link>
-        <Link
-          href={hrefFor(space.id, query, { status: "PLANNING", upcoming: "" })}
-          className={`celeb-kpi${query.status === "PLANNING" ? " is-active" : ""}`}
-        >
-          <span className="celeb-kpi-icon is-peach">
-            <Clock size={18} />
-          </span>
-          <strong>{kpi.planning}</strong>
-          <b>Planning</b>
-          <small>{kpiDelta(kpi.planningThisMonth)}</small>
-        </Link>
-        <Link
-          href={hrefFor(space.id, query, { upcoming: "1", status: "", dated: "" })}
-          className={`celeb-kpi${query.upcoming === "1" ? " is-active" : ""}`}
-        >
-          <span className="celeb-kpi-icon is-mint">
-            <CalendarDays size={18} />
-          </span>
-          <strong>{kpi.upcomingThisMonth}</strong>
-          <b>Upcoming This Month</b>
-          <small>
-            {kpi.upcomingThisMonth
-              ? `+${kpi.upcomingThisMonth} this month`
-              : "No upcoming dates"}
-          </small>
-        </Link>
-        <Link
-          href={hrefFor(space.id, query, { status: "COMPLETED", upcoming: "" })}
-          className={`celeb-kpi${query.status === "COMPLETED" ? " is-active" : ""}`}
-        >
-          <span className="celeb-kpi-icon is-sage">
-            <CircleCheck size={18} />
-          </span>
-          <strong>{kpi.completed}</strong>
-          <b>Completed</b>
-          <small className={kpi.completedThisMonth ? "is-up" : ""}>
-            {kpiDelta(kpi.completedThisMonth)}
-          </small>
-        </Link>
-        <Link
-          href={hrefFor(space.id, query, { status: "ARCHIVED", upcoming: "" })}
-          className={`celeb-kpi${query.status === "ARCHIVED" ? " is-active" : ""}`}
-        >
-          <span className="celeb-kpi-icon is-blush">
-            <ClipboardList size={18} />
-          </span>
-          <strong>{kpi.archived}</strong>
-          <b>Archived</b>
-          <small>{kpiDelta(kpi.archivedThisMonth)}</small>
-        </Link>
-        <Link
-          href={hrefFor(space.id, query, { status: "DRAFT", upcoming: "" })}
-          className={`celeb-kpi${query.status === "DRAFT" ? " is-active" : ""}`}
-        >
-          <span className="celeb-kpi-icon is-sky">
-            <ClipboardList size={18} />
-          </span>
-          <strong>{kpi.draft}</strong>
-          <b>Drafts</b>
-          <small>Unpublished plans</small>
-        </Link>
-      </div>
-
-      <div className="page-actions">
-        <Link className="secondary" href={`/templates?space=${space.id}`}>
-          <Sparkles size={16} /> Create from template
-        </Link>
+      <div className="celeb-top">
+        <div className="celeb-kpi-grid">
+          <Link
+            href={hrefFor(space.id, query, { status: "", upcoming: "", dated: "" })}
+            className={`celeb-kpi${!query.status && query.upcoming !== "1" ? " is-active" : ""}`}
+          >
+            <strong>{kpi.all}</strong>
+            <span className="celeb-kpi-copy">
+              <span className="celeb-kpi-label">Total celebrations</span>
+              <span className={`celeb-kpi-hint${kpi.createdThisMonth ? " is-up" : ""}`}>
+                {kpiDelta(kpi.createdThisMonth)}
+              </span>
+            </span>
+          </Link>
+          <Link
+            href={hrefFor(space.id, query, { status: "PLANNING", upcoming: "" })}
+            className={`celeb-kpi${query.status === "PLANNING" ? " is-active" : ""}`}
+          >
+            <strong>{kpi.planning}</strong>
+            <span className="celeb-kpi-copy">
+              <span className="celeb-kpi-label">Planning</span>
+              <span className="celeb-kpi-hint">{kpiDelta(kpi.planningThisMonth)}</span>
+            </span>
+          </Link>
+          <Link
+            href={hrefFor(space.id, query, { upcoming: "1", status: "", dated: "" })}
+            className={`celeb-kpi${query.upcoming === "1" ? " is-active" : ""}`}
+          >
+            <strong>{kpi.upcomingThisMonth}</strong>
+            <span className="celeb-kpi-copy">
+              <span className="celeb-kpi-label">Upcoming this month</span>
+              <span className="celeb-kpi-hint">
+                {kpi.upcomingThisMonth
+                  ? `+${kpi.upcomingThisMonth} this month`
+                  : "No upcoming dates"}
+              </span>
+            </span>
+          </Link>
+          <Link
+            href={hrefFor(space.id, query, { status: "COMPLETED", upcoming: "" })}
+            className={`celeb-kpi${query.status === "COMPLETED" ? " is-active" : ""}`}
+          >
+            <strong>{kpi.completed}</strong>
+            <span className="celeb-kpi-copy">
+              <span className="celeb-kpi-label">Completed</span>
+              <span className={`celeb-kpi-hint${kpi.completedThisMonth ? " is-up" : ""}`}>
+                {kpiDelta(kpi.completedThisMonth)}
+              </span>
+            </span>
+          </Link>
+          <Link
+            href={hrefFor(space.id, query, { status: "ARCHIVED", upcoming: "" })}
+            className={`celeb-kpi${query.status === "ARCHIVED" ? " is-active" : ""}`}
+          >
+            <strong>{kpi.archived}</strong>
+            <span className="celeb-kpi-copy">
+              <span className="celeb-kpi-label">Archived</span>
+              <span className="celeb-kpi-hint">{kpiDelta(kpi.archivedThisMonth)}</span>
+            </span>
+          </Link>
+          <Link
+            href={hrefFor(space.id, query, { status: "DRAFT", upcoming: "" })}
+            className={`celeb-kpi${query.status === "DRAFT" ? " is-active" : ""}`}
+          >
+            <strong>{kpi.draft}</strong>
+            <span className="celeb-kpi-copy">
+              <span className="celeb-kpi-label">Drafts</span>
+              <span className="celeb-kpi-hint">Unpublished plans</span>
+            </span>
+          </Link>
+        </div>
+        <div className="celeb-actions">
+          {canWrite ? (
+            <Link className="primary" href={`/new?space=${space.id}`}>
+              New event
+            </Link>
+          ) : null}
+          <Link className="secondary" href={`/templates?space=${space.id}`}>
+            <Sparkles size={16} /> Create from template
+          </Link>
+        </div>
       </div>
 
       {upcoming && (
         <section className="celeb-next">
-          <div>
+          <div className="celeb-next-copy">
             <small>Your next celebration</small>
             <strong>{upcoming.name}</strong>
             <span>
@@ -393,24 +392,24 @@ export default async function CelebrationsPage({
                 : "Date to be decided"}
               {upcoming.plan.location ? ` · ${upcoming.plan.location}` : ""}
             </span>
+            {daysLeft !== null && (
+              <div className="celeb-next-count">
+                <b>
+                  {daysLeft < 0
+                    ? "Event date passed"
+                    : daysLeft === 0
+                      ? "Today"
+                      : `${daysLeft} days to go`}
+                </b>
+                <span
+                  className="celeb-next-bar"
+                  style={{
+                    ["--celeb-next" as string]: `${countdownProgress(daysLeft)}%`,
+                  }}
+                />
+              </div>
+            )}
           </div>
-          {daysLeft !== null && (
-            <div className="celeb-next-count">
-              <b>
-                {daysLeft < 0
-                  ? "Event date passed"
-                  : daysLeft === 0
-                    ? "Today"
-                    : `${daysLeft} days to go`}
-              </b>
-              <span
-                className="celeb-next-bar"
-                style={{
-                  ["--celeb-next" as string]: `${countdownProgress(daysLeft)}%`,
-                }}
-              />
-            </div>
-          )}
           <div className="celeb-next-links">
             <Link href={`/events/${upcoming.id}`}>
               <Sparkles size={15} /> Plan with AI

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireUser, startSession, limit } from "@/lib/auth";
+import { requireUser, startSession, limit, currentUser } from "@/lib/auth";
 import {
   hashToken,
   token,
@@ -914,14 +914,6 @@ export async function acceptInvitation(
   const user = await requireUser();
   let spaceId: string;
   try {
-    const profile = await db.user.findUniqueOrThrow({
-      where: { id: user.id },
-      select: { emailVerifiedAt: true },
-    });
-    if (!profile.emailVerifiedAt)
-      return {
-        error: "Verify your email in Account before accepting this invitation.",
-      };
     const raw = z
       .string()
       .regex(/^[a-f0-9]{64}$/)
@@ -959,8 +951,103 @@ export async function acceptInvitation(
         },
         update: { roleId: invite.roleId },
       });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      });
       return invite.spaceId;
     });
+  } catch (e) {
+    return error(e);
+  }
+  redirect(`/dashboard?space=${spaceId}`);
+}
+
+export async function joinSpaceInvite(
+  _: Result,
+  form: FormData,
+): Promise<Result> {
+  let spaceId: string;
+  try {
+    const raw = z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .parse(form.get("token"));
+    await limit(`invite-join:${hashToken(raw)}`, 8, 900);
+    const password = z
+      .string()
+      .min(
+        PASSWORD_MIN_LENGTH,
+        `Use at least ${PASSWORD_MIN_LENGTH} characters.`,
+      )
+      .max(128)
+      .parse(form.get("password"));
+    const sessionUser = await currentUser();
+    const invite = await db.invitation.findUnique({
+      where: { tokenHash: hashToken(raw) },
+    });
+    if (
+      !invite ||
+      invite.acceptedAt ||
+      invite.revokedAt ||
+      invite.expiresAt <= new Date()
+    )
+      throw new Error("This invitation is expired, already accepted, or invalid.");
+    if (sessionUser && sessionUser.email !== invite.email)
+      throw new Error(
+        "You are signed in with a different email. Sign out, then open this invitation again.",
+      );
+
+    let userId = sessionUser?.id;
+    if (!userId) {
+      const existing = await db.user.findUnique({
+        where: { email: invite.email },
+      });
+      if (existing) {
+        if (!verifyPassword(password, existing.passwordHash))
+          throw new Error("Incorrect password for this email.");
+        userId = existing.id;
+      } else {
+        const name = nameSchema.parse(form.get("name"));
+        const created = await db.user.create({
+          data: {
+            email: invite.email,
+            name,
+            passwordHash: passwordHash(password),
+            emailVerifiedAt: new Date(),
+          },
+        });
+        userId = created.id;
+      }
+    }
+
+    spaceId = await db.$transaction(async (tx) => {
+      const consumed = await tx.invitation.updateMany({
+        where: {
+          id: invite.id,
+          acceptedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { acceptedAt: new Date() },
+      });
+      if (!consumed.count) throw new Error("This invitation already changed.");
+      await tx.membership.upsert({
+        where: { spaceId_userId: { spaceId: invite.spaceId, userId } },
+        create: {
+          spaceId: invite.spaceId,
+          userId,
+          roleId: invite.roleId,
+        },
+        update: { roleId: invite.roleId },
+      });
+      await tx.user.update({
+        where: { id: userId },
+        data: { emailVerifiedAt: new Date() },
+      });
+      return invite.spaceId;
+    });
+    if (!sessionUser) await startSession(userId);
   } catch (e) {
     return error(e);
   }

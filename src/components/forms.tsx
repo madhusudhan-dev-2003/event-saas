@@ -6,6 +6,7 @@ import {
   createEvent,
   createInvitation,
   acceptInvitation,
+  joinSpaceInvite,
   removeMember,
   createGuestLink,
   rsvp,
@@ -86,7 +87,9 @@ export function AuthForm({ invite = "" }: { invite?: string }) {
   if (view === "reset") {
     return (
       <>
-        <p>Enter your registered email. We will send a password reset link.</p>
+        <p className="auth-lead">
+          Enter the email on your account. We will send a reset link.
+        </p>
         <ActionForm action={requestReset} label="Send reset email" key="reset">
           <label>
             Email
@@ -108,9 +111,29 @@ export function AuthForm({ invite = "" }: { invite?: string }) {
   const register = view === "register";
   return (
     <>
+      <div className="auth-tabs" role="tablist" aria-label="Account">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!register}
+          className={!register ? "is-on" : ""}
+          onClick={() => setView("login")}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={register}
+          className={register ? "is-on" : ""}
+          onClick={() => setView("register")}
+        >
+          Create account
+        </button>
+      </div>
       <ActionForm
         action={authenticate}
-        label={register ? "Create my account" : "Sign in"}
+        label={register ? "Create account" : "Sign in"}
         key={view}
       >
         <input
@@ -145,23 +168,13 @@ export function AuthForm({ invite = "" }: { invite?: string }) {
             maxLength={128}
             autoComplete={register ? "new-password" : "current-password"}
           />
-          <small>At least 6 characters.</small>
+          {register ? <small>At least 6 characters.</small> : null}
         </label>
       </ActionForm>
-      <button
-        className="text-button"
-        onClick={() => setView(register ? "login" : "register")}
-      >
-        {register
-          ? "Already have an account? Sign in"
-          : "New here? Create an account"}
-      </button>
       {!register && (
-        <p>
-          <button className="text-button" onClick={() => setView("reset")}>
-            Forgot your password? Reset it
-          </button>
-        </p>
+        <button className="text-button" onClick={() => setView("reset")}>
+          Forgot password?
+        </button>
       )}
     </>
   );
@@ -313,6 +326,46 @@ export function InviteForm({
       <label className="check-row">
         <input type="checkbox" name="sendEmail" value="1" />
         <span>Email them the invitation link</span>
+      </label>
+    </ActionForm>
+  );
+}
+export function InviteJoinForm({
+  token,
+  email,
+  needsName,
+}: {
+  token: string;
+  email: string;
+  needsName: boolean;
+}) {
+  return (
+    <ActionForm
+      action={joinSpaceInvite}
+      label={needsName ? "Create password and join" : "Sign in and join"}
+    >
+      <input type="hidden" name="token" value={token} />
+      <label>
+        Email
+        <input value={email} readOnly />
+      </label>
+      {needsName ? (
+        <label>
+          Your name
+          <input name="name" required maxLength={120} autoComplete="name" />
+        </label>
+      ) : null}
+      <label>
+        Password
+        <input
+          type="password"
+          name="password"
+          required
+          minLength={6}
+          maxLength={128}
+          autoComplete={needsName ? "new-password" : "current-password"}
+        />
+        {needsName ? <small>At least 6 characters.</small> : null}
       </label>
     </ActionForm>
   );

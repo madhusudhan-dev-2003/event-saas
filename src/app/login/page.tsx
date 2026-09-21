@@ -1,34 +1,49 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/forms";
+import { currentUser } from "@/lib/auth";
+import { getShellContext } from "@/lib/space-context";
+
 export default async function Login({
   searchParams,
 }: {
   searchParams: Promise<{ invite?: string }>;
 }) {
   const q = await searchParams;
+  const user = await currentUser();
+  if (user) {
+    if (q.invite && /^[a-f0-9]{64}$/.test(q.invite)) {
+      redirect(`/invite/${q.invite}`);
+    }
+    const { spaceId } = await getShellContext();
+    redirect(spaceId ? `/dashboard?space=${spaceId}` : "/spaces/new");
+  }
+
   return (
     <div className="auth-page">
-      <div className="auth-story">
-        <Link href="/" className="brand">
-          ✳ utsava
-        </Link>
-        <h1>
-          For your people.
-          <br />
-          For your moments.
-        </h1>
-        <p>
-          From the very first idea to the last thank-you, make every celebration
-          feel a little easier.
-        </p>
-        <span className="auth-flower">✳</span>
-      </div>
-      <div className="auth-form">
-        <p className="eyebrow">A WARM WELCOME</p>
-        <h2>Your celebrations start here.</h2>
-        <p>One account for your family, personal and company spaces.</p>
-        <AuthForm invite={q.invite} />
-      </div>
+      <aside className="auth-story">
+        <img src="/auth-hero.png" alt="" />
+        <div className="auth-story-veil" />
+        <div className="auth-story-copy">
+          <Link href="/login" className="auth-brand">
+            utsava
+          </Link>
+          <div>
+            <h1>Every gathering, held in one place.</h1>
+            <p>
+              Plan the day, the people, and the details — privately, with the
+              ones who matter.
+            </p>
+          </div>
+        </div>
+      </aside>
+      <main className="auth-form">
+        <div className="auth-form-card">
+          <h2>Welcome</h2>
+          <p>Sign in or create an account to open your space.</p>
+          <AuthForm invite={q.invite} />
+        </div>
+      </main>
     </div>
   );
 }

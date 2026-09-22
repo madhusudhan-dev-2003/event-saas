@@ -195,6 +195,7 @@ export function SpaceDashboard({
       </div>
 
       <section className="dash-next">
+        <Icon3d className="dash-next-art" name="plan" size={84} />
         <div>
           <p className="dash-kicker">Next to do</p>
           <h2>{view.next ? view.next.actionTitle : "Start a celebration"}</h2>
@@ -219,7 +220,6 @@ export function SpaceDashboard({
             </p>
           ) : null}
         </div>
-        <Icon3d className="dash-next-art" name="plan" size={96} />
         <div className="dash-next-actions">
           <Link
             className="primary"

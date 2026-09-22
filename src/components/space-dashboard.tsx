@@ -2,15 +2,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  ClipboardList,
   Eye,
   ListChecks,
   MapPin,
-  Plus,
-  Settings2,
-  Store,
   Users,
 } from "@/components/icons";
+import { Icon3d, type Icon3dName } from "@/components/icon-3d";
 import { BarChart, PieChart, StackedMeter } from "@/components/dashboard-charts";
 import { celebrationCover } from "@/lib/celebration-board";
 import { formatMoney, occasions } from "@/lib/planning";
@@ -28,6 +25,8 @@ export function SpaceDashboard({
   spaceId,
   view,
   search,
+  greeting,
+  intro,
   canWrite,
   canBudget,
   canUsers,
@@ -37,6 +36,8 @@ export function SpaceDashboard({
   spaceId: string;
   view: View;
   search: string;
+  greeting: string;
+  intro: string;
   canWrite: boolean;
   canBudget: boolean;
   canUsers: boolean;
@@ -54,18 +55,26 @@ export function SpaceDashboard({
       )
     : source;
 
-  const kpis = [
+  const kpis: {
+    value: string | number;
+    label: string;
+    hint: string;
+    to: string;
+    icon: Icon3dName;
+  }[] = [
     {
       value: totals.celebrations,
       label: "Celebrations",
       hint: `${totals.active} in progress`,
       to: href("/celebrations", spaceId),
+      icon: "celebrations",
     },
     {
       value: totals.active,
       label: "In progress",
       hint: `${totals.completed} completed`,
       to: href("/celebrations?status=PLANNING", spaceId),
+      icon: "progress",
     },
     {
       value: totals.openTasks,
@@ -75,18 +84,21 @@ export function SpaceDashboard({
           ? `${totals.overdueTasks} overdue`
           : `${totals.doneTasks} done`,
       to: href("/celebrations", spaceId),
+      icon: "tasks",
     },
     {
       value: totals.attending,
       label: "Guests attending",
       hint: `${totals.households} households`,
       to: href("/celebrations", spaceId),
+      icon: "guests",
     },
     {
       value: view.rsvp.pending,
       label: "Waiting RSVP",
       hint: `${totals.checkedIn} checked in`,
       to: href("/celebrations", spaceId),
+      icon: "rsvp",
     },
     canBudget
       ? {
@@ -94,59 +106,92 @@ export function SpaceDashboard({
           label: "Budget planned",
           hint: budgetHealthLabel(view.money.health),
           to: href("/celebrations", spaceId),
+          icon: "budget" as const,
         }
       : {
           value: totals.members,
           label: "People",
           hint: `${totals.pendingInvites} invites`,
           to: canUsers ? href("/users", spaceId) : href("/celebrations", spaceId),
+          icon: "people" as const,
         },
   ];
 
   return (
     <div className="dash">
-      <div className="dash-top">
-        <div className="dash-kpis">
-          {kpis.map((kpi) => (
-            <Link className="kpi-card" href={kpi.to} key={kpi.label}>
+      <section className="dash-hero">
+        <div className="dash-hero-copy">
+          <h1>{greeting}</h1>
+          <p>{intro}</p>
+        </div>
+        <img
+          className="dash-hero-art"
+          src="/icons-3d/dashboard-hero-art.webp"
+          alt=""
+          aria-hidden="true"
+          width={568}
+          height={520}
+        />
+      </section>
+
+      <div className="dash-kpis">
+        {kpis.map((kpi) => (
+          <Link className="kpi-card" href={kpi.to} key={kpi.label}>
+            <Icon3d name={kpi.icon} size={46} />
+            <span className="kpi-copy">
               <strong>{kpi.value}</strong>
-              <span className="kpi-copy">
-                <span className="kpi-label">{kpi.label}</span>
-                <span className="kpi-hint">{kpi.hint}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-        <div className="dash-actions">
-          {canWrite ? (
-            <Link className="primary" href={href("/new", spaceId)}>
-              <Plus size={16} />
-              New event
-            </Link>
-          ) : null}
-          <Link className="secondary" href={href("/celebrations", spaceId)}>
-            <ClipboardList size={16} />
-            Celebrations
+              <span className="kpi-label">{kpi.label}</span>
+              <span className="kpi-hint">{kpi.hint}</span>
+            </span>
+            <ArrowRight className="kpi-go" size={15} />
           </Link>
-          {canUsers ? (
-            <Link className="secondary" href={href("/users", spaceId)}>
-              <Users size={16} />
-              People
-            </Link>
-          ) : null}
-          {canProviders ? (
-            <Link className="secondary" href={href("/providers", spaceId)}>
-              <Store size={16} />
-              Providers
-            </Link>
-          ) : null}
-          {canSettings ? (
-            <Link className="secondary" href={href("/settings", spaceId)}>
-              <Settings2 size={16} />
-              Settings
-            </Link>
-          ) : null}
-        </div>
+        ))}
+      </div>
+
+      <div className="dash-actions">
+        {canWrite ? (
+          <Link className="dash-action" href={href("/new", spaceId)}>
+            <Icon3d name="gift" size={54} />
+            <span className="dash-action-label">New event</span>
+            <span className="dash-action-go">
+              <ArrowRight size={15} />
+            </span>
+          </Link>
+        ) : null}
+        <Link className="dash-action" href={href("/celebrations", spaceId)}>
+          <Icon3d name="cake" size={54} />
+          <span className="dash-action-label">Celebrations</span>
+          <span className="dash-action-go">
+            <ArrowRight size={15} />
+          </span>
+        </Link>
+        {canUsers ? (
+          <Link className="dash-action" href={href("/users", spaceId)}>
+            <Icon3d name="people" size={54} />
+            <span className="dash-action-label">People</span>
+            <span className="dash-action-go">
+              <ArrowRight size={15} />
+            </span>
+          </Link>
+        ) : null}
+        {canProviders ? (
+          <Link className="dash-action" href={href("/providers", spaceId)}>
+            <Icon3d name="providers" size={54} />
+            <span className="dash-action-label">Providers</span>
+            <span className="dash-action-go">
+              <ArrowRight size={15} />
+            </span>
+          </Link>
+        ) : null}
+        {canSettings ? (
+          <Link className="dash-action" href={href("/settings", spaceId)}>
+            <Icon3d name="settings" size={54} />
+            <span className="dash-action-label">Settings</span>
+            <span className="dash-action-go">
+              <ArrowRight size={15} />
+            </span>
+          </Link>
+        ) : null}
       </div>
 
       <section className="dash-next">
@@ -174,6 +219,7 @@ export function SpaceDashboard({
             </p>
           ) : null}
         </div>
+        <Icon3d className="dash-next-art" name="plan" size={96} />
         <div className="dash-next-actions">
           <Link
             className="primary"

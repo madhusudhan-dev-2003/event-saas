@@ -73,18 +73,13 @@ export default async function DashboardPage({
   });
 
   return (
-    <Shell
-      user={user}
-      spaces={spaces}
-      spaceId={space.id}
-      active="dashboard"
-      title={`Hello, ${user.name.split(" ")[0]}.`}
-      description="Everything in this space — celebrations, guests, money, vendors, and people."
-    >
+    <Shell user={user} spaces={spaces} spaceId={space.id} active="dashboard">
       <SpaceDashboard
         spaceId={space.id}
         view={view}
         search={(query.q || "").trim().toLowerCase()}
+        greeting={`Hello, ${user.name.split(" ")[0]}.`}
+        intro="Everything in this space — celebrations, guests, money, vendors, and people."
         canWrite={can(permissions, "events.write")}
         canBudget={can(permissions, "budget.view")}
         canUsers={

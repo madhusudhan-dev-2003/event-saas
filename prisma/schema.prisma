@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String
+  passwordHash String
+  emailVerifiedAt DateTime?
+  createdAt DateTime @default(now())
+  sessions Session[]
+  memberships Membership[]
+  provider Provider?
+}
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([userId])
+}
+model Space {
+  id String @id @default(cuid())
+  name String
+  kind String
+  createdAt DateTime @default(now())
+  members Membership[]
+  events Event[]
+  invites Invitation[]
+  roles SpaceRole[]
+  subscription Subscription?
+  brand SpaceBrand?
+}
+model SpaceBrand {
+  spaceId String @id
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  logoBytes Bytes?
+  logoMime String?
+  faviconBytes Bytes?
+  faviconMime String?
+  updatedAt DateTime @updatedAt
+}
+model SpaceRole {
+  id String @id @default(cuid())
+  spaceId String
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  name String
+  systemKey String?
+  isSystem Boolean @default(false)
+  permissions Json
+  createdAt DateTime @default(now())
+  members Membership[]
+  invites Invitation[]
+  @@unique([spaceId, name])
+  @@index([spaceId])
+}
+model Membership {
+  spaceId String
+  userId String
+  roleId String
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role SpaceRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  @@id([spaceId, userId])
+  @@index([userId])
+  @@index([roleId])
+}
+model Event {
+  id String @id @default(cuid())
+  spaceId String
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  name String
+  templateKey String
+  templateVersion Int @default(1)
+  plan Json
+  version Int @default(0)
+  createKey String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guestLinks GuestLink[]
+  serviceRequests ServiceRequest[]
+  @@index([spaceId, createdAt])
+}
+model Invitation {
+  id String @id @default(cuid())
+  spaceId String
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  email String
+  roleId String
+  role SpaceRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  tokenHash String @unique
+  expiresAt DateTime
+  acceptedAt DateTime?
+  revokedAt DateTime?
+  @@index([spaceId])
+  @@index([roleId])
+}
+model GuestLink {
+  id String @id @default(cuid())
+  eventId String
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tokenHash String @unique
+  household String
+  maxGuests Int
+  response String @default("PENDING")
+  attending Int @default(0)
+  dietary String @default("")
+  contact String @default("")
+  notes String @default("")
+  side String @default("")
+  checkedIn Boolean @default(false)
+  expiresAt DateTime
+  revokedAt DateTime?
+  updatedAt DateTime @updatedAt
+  @@index([eventId])
+}
+model Subscription {
+  spaceId String @id
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  customerId String? @unique
+  subscriptionId String? @unique
+  status String @default("INACTIVE")
+  priceId String?
+  checkoutSessionId String?
+  updatedAt DateTime @updatedAt
+}
+model WebhookReceipt {
+  id String @id
+  createdAt DateTime @default(now())
+}
+model RateLimit {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime
+}
+model Audit {
+  id String @id @default(cuid())
+  actorId String
+  spaceId String
+  action String
+  targetId String
+  createdAt DateTime @default(now())
+  @@index([spaceId, createdAt])
+}
+model AccountToken {
+  tokenHash String @id
+  userId String
+  purpose String
+  expiresAt DateTime
+  consumedAt DateTime?
+  @@index([userId, purpose])
+}
+model Provider {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name String
+  category String
+  location String
+  description String
+  contact String
+  published Boolean @default(false)
+  updatedAt DateTime @updatedAt
+  @@index([published,category])
+}
+model ServiceRequest {
+  id String @id @default(cuid())
+  eventId String
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  serviceId String
+  tokenHash String @unique
+  providerName String
+  category String
+  brief String
+  currency String
+  quote Int?
+  availability String @default("UNKNOWN")
+  reply String @default("")
+  version Int @default(0)
+  importedAt DateTime?
+  expiresAt DateTime
+  revokedAt DateTime?
+  @@index([eventId])
+}
